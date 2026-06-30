@@ -3,6 +3,7 @@
 import * as React from "react";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 
+// ThemeProvider component wraps next-themes provider for dark mode hydration.
 export function ThemeProvider({
   children,
   ...props
