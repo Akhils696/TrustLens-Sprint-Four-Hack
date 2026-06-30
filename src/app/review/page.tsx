@@ -10,6 +10,13 @@ import { Badge } from "@/components/ui/badge";
 import { CircularProgress } from "@/components/ui/progress";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import {
+  updateReviewState,
+  redactDocument as apiRedactDocument,
+  downloadRedacted,
+  downloadPrivacyReport,
+  ApiError,
+} from "@/services/api";
+import {
   CheckCircle,
   XCircle,
   MousePointerClick,
@@ -18,6 +25,7 @@ import {
   RefreshCw,
   Sparkles,
   ShieldOff,
+  FileJson,
 } from "lucide-react";
 
 interface Detection {
@@ -57,6 +65,7 @@ const getRiskColor = (risk: string) => {
 
 export default function Review() {
   const router = useRouter();
+  const [documentId, setDocumentId] = React.useState("");
   const [fileId, setFileId] = React.useState("");
   const [filename, setFilename] = React.useState("");
   const [text, setText] = React.useState("");
@@ -76,11 +85,14 @@ export default function Review() {
   // Export state
   const [exporting, setExporting] = React.useState(false);
   const [exportError, setExportError] = React.useState("");
+  const [downloadFormat, setDownloadFormat] = React.useState<"pdf" | "txt">("pdf");
+  const [reportDownloading, setReportDownloading] = React.useState(false);
   const [showCompletion, setShowCompletion] = React.useState(false);
 
   React.useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
     const cachedId = localStorage.getItem("trustlens_file_id") || "";
+    const cachedDocumentId = localStorage.getItem("trustlens_document_id") || cachedId;
     const cachedName = localStorage.getItem("trustlens_filename") || "";
     const cachedText = localStorage.getItem("trustlens_text") || "";
     const cachedAnalysis = localStorage.getItem("trustlens_analysis");
@@ -91,6 +103,7 @@ export default function Review() {
     }
 
     setFileId(cachedId);
+    setDocumentId(cachedDocumentId);
     setFilename(cachedName);
     setText(cachedText);
 
@@ -100,7 +113,7 @@ export default function Review() {
       // Initialize detections as approved by default
       const dets = (parsed.detections || []).map((d: Detection) => ({
         ...d,
-        approved: true,
+        approved: d.approved !== false, // respect backend default
       }));
       setDetections(dets);
     } catch {
@@ -227,12 +240,21 @@ export default function Review() {
   const toggleApproval = React.useCallback(
     (id: string) => {
       setDetections((prev) => prev.map((d) => (d.id === id ? { ...d, approved: !d.approved } : d)));
-      // If updating selected item
       if (selectedDet && selectedDet.id === id) {
         setSelectedDet((prev) => (prev ? { ...prev, approved: !prev.approved } : null));
       }
+      // Sync approval state to backend session (fire-and-forget; don't block UI)
+      if (documentId) {
+        const det = detections.find((d) => d.id === id);
+        if (det) {
+          const newApproval = det.approved ? "rejected" : "approved";
+          updateReviewState(documentId, id, newApproval).catch(() => {
+            // Silently ignore if backend not running; localStorage is source of truth
+          });
+        }
+      }
     },
-    [selectedDet]
+    [selectedDet, documentId, detections]
   );
 
   const handleDocumentMouseUp = () => {
@@ -248,36 +270,52 @@ export default function Review() {
     setExporting(true);
     setExportError("");
     try {
-      const redactionTexts = activeRedactions.map((d) => d.text);
-      const res = await fetch("http://localhost:8000/api/export", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileId,
-          filename,
-          redactions: redactionTexts,
-        }),
-      });
-
-      if (!res.ok) throw new Error("Failed to export redacted document.");
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `redacted_${filename.split(".")[0]}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
+      // Prefer new Sprint 4 redact+download API
+      if (documentId) {
+        const approvedIds = activeRedactions.map((d) => d.id);
+        await apiRedactDocument(documentId, approvedIds);
+        await downloadRedacted(documentId, downloadFormat);
+      } else {
+        // Backward compat: use /api/export with raw text
+        const redactionTexts = activeRedactions.map((d) => d.text);
+        const res = await fetch("http://localhost:8000/api/export", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ fileId, filename, redactions: redactionTexts }),
+        });
+        if (!res.ok) throw new Error("Export failed.");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `redacted_${filename.replace(/\.[^.]+$/, "")}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
     } catch (err) {
       setExportError(
-        err instanceof Error ? err.message : "Export failed. Please check backend server status."
+        err instanceof ApiError || err instanceof Error
+          ? err.message
+          : "Export failed. Please check backend server status."
       );
     } finally {
       setExporting(false);
     }
-  }, [activeRedactions, fileId, filename]);
+  }, [activeRedactions, documentId, downloadFormat, fileId, filename]);
+
+  const handleDownloadReport = React.useCallback(async () => {
+    if (!documentId) return;
+    setReportDownloading(true);
+    try {
+      await downloadPrivacyReport(documentId, filename);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Failed to generate privacy report.");
+    } finally {
+      setReportDownloading(false);
+    }
+  }, [documentId, filename]);
 
   // Render text with highlight marks — memoized to avoid re-render on unrelated state changes
   const renderDocumentViewer = React.useMemo(() => {
@@ -426,22 +464,48 @@ export default function Review() {
               </div>
 
               {/* Action buttons */}
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4 flex-wrap">
                 <Button variant="outline" onClick={() => setShowCompletion(false)}>
                   Return to Editor
                 </Button>
                 <Button variant="outline" onClick={() => router.push("/sandbox")}>
                   Analyze Another Document
                 </Button>
-                <Button
-                  onClick={handleExport}
-                  disabled={exporting}
-                  aria-label="Download redacted document as PDF"
-                  rightIcon={<Download className="h-4 w-4" />}
-                  className="w-full sm:w-auto shadow-lg shadow-primary/20"
-                >
-                  {exporting ? "Exporting..." : "Download Redacted Document"}
-                </Button>
+
+                {/* Format selector + Download */}
+                <div className="flex items-center gap-2">
+                  <select
+                    value={downloadFormat}
+                    onChange={(e) => setDownloadFormat(e.target.value as "pdf" | "txt")}
+                    className="text-xs bg-secondary border border-border rounded-lg h-9 px-2 text-foreground outline-none focus:ring-2 focus:ring-primary/40"
+                    aria-label="Select download format"
+                  >
+                    <option value="pdf">PDF</option>
+                    <option value="txt">TXT</option>
+                  </select>
+                  <Button
+                    onClick={handleExport}
+                    disabled={exporting}
+                    aria-label="Download redacted document"
+                    rightIcon={<Download className="h-4 w-4" />}
+                    className="shadow-lg shadow-primary/20"
+                  >
+                    {exporting ? "Exporting..." : "Download Redacted"}
+                  </Button>
+                </div>
+
+                {/* Privacy Report download */}
+                {documentId && (
+                  <Button
+                    variant="outline"
+                    onClick={handleDownloadReport}
+                    disabled={reportDownloading}
+                    aria-label="Download privacy report as JSON"
+                    rightIcon={<FileJson className="h-4 w-4" />}
+                  >
+                    {reportDownloading ? "Generating..." : "Privacy Report"}
+                  </Button>
+                )}
               </div>
 
               {/* Export error inline notification */}
@@ -493,7 +557,7 @@ export default function Review() {
                         className="border-emerald-500/20 bg-emerald-500/5"
                       />
                     ) : (
-                      renderDocumentViewer()
+                      renderDocumentViewer
                     )}
                   </CardContent>
                 </Card>
