@@ -22,7 +22,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
+from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
@@ -77,6 +77,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition"],
 )
 
 
@@ -142,6 +143,17 @@ async def upload_document(file: UploadFile = File(...)):
     Upload a document: validate → store → extract text → save DocumentRecord.
     Returns document metadata + extracted text for the frontend.
     """
+    # Ephemeral self-cleaning of old files in UPLOAD_DIR
+    try:
+        import time
+        now = time.time()
+        for f in os.listdir(UPLOAD_DIR):
+            fpath = os.path.join(UPLOAD_DIR, f)
+            if os.path.isfile(fpath) and os.stat(fpath).st_mtime < now - 600:
+                os.remove(fpath)
+    except Exception:
+        pass
+
     filename = file.filename or "document.txt"
     ext = os.path.splitext(filename)[1].lower()
 
@@ -424,12 +436,21 @@ async def export_redacted_document(req: ExportRequest):
 # GET /api/download/{documentId}
 # ---------------------------------------------------------------------------
 
+def cleanup_temp_file(path: str):
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+        except Exception:
+            pass
+
+
 @app.get("/api/download/{document_id}")
 async def download_redacted(
     document_id: str,
+    background_tasks: BackgroundTasks,
     format: Literal["pdf", "txt"] = Query(default="pdf"),
 ):
-    """Serve the redacted document in the requested format."""
+    """Serve the redacted document in the requested format and clean it up afterwards."""
     try:
         record = store.get_or_raise(document_id)
     except KeyError:
@@ -456,7 +477,15 @@ async def download_redacted(
     if not os.path.exists(out_path):
         raise HTTPException(status_code=404, detail=f"Redacted {format.upper()} file not found on disk.")
 
-    return FileResponse(out_path, media_type=media_type, filename=dl_name)
+    background_tasks.add_task(cleanup_temp_file, out_path)
+
+    # Explicit headers ensure browser compatibility and clean filename parsing
+    headers = {
+        "Content-Disposition": f'attachment; filename="{dl_name}"',
+        "Access-Control-Expose-Headers": "Content-Disposition"
+    }
+
+    return FileResponse(out_path, media_type=media_type, headers=headers)
 
 
 # ---------------------------------------------------------------------------

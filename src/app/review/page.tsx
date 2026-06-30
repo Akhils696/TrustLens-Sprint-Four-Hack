@@ -581,7 +581,7 @@ export default function Review() {
               {/* Actions */}
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2 flex-wrap">
                 <Button variant="outline" onClick={() => setShowCompletion(false)}>
-                  Return to Editor
+                  Return to Review
                 </Button>
                 <Button variant="outline" onClick={() => router.push("/sandbox")}>
                   Analyze Another Document
