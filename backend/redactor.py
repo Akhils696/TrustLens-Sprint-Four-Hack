@@ -67,8 +67,8 @@ def _redact_pdf(file_path: str, redactions: list[str]) -> str:
                         continue
                     hits = page.search_for(phrase, quads=False)
                     for rect in hits:
-                        # Black filled redaction annotation (fits the required API format)
-                        page.add_redact_annot(rect, fill=(0, 0, 0), text="", fontsize=1)
+                        # Black filled redaction annotation — permanent removal
+                        page.add_redact_annot(rect, fill=(0, 0, 0), cross_out=False)
                 page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
             doc.save(out_path, garbage=4, deflate=True)
         return out_path
