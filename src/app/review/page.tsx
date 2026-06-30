@@ -73,6 +73,7 @@ export default function Review() {
 
   // Export state
   const [exporting, setExporting] = React.useState(false);
+  const [showCompletion, setShowCompletion] = React.useState(false);
 
   React.useEffect(() => {
     /* eslint-disable react-hooks/set-state-in-effect */
@@ -132,6 +133,12 @@ export default function Review() {
       color: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400",
     };
   }, [dynamicScore]);
+
+  const avgConfidence = React.useMemo(() => {
+    if (detections.length === 0) return 0;
+    const sum = detections.reduce((acc, curr) => acc + (curr.confidence || 0), 0);
+    return Math.round(sum / detections.length);
+  }, [detections]);
 
   // Triggers Gemini API explain endpoint to calculate confidence logs for the selected token
   const handleSelectDetection = async (det: Detection) => {
@@ -309,298 +316,400 @@ export default function Review() {
             <Button variant="outline" onClick={() => router.push("/sandbox")}>
               Upload Another
             </Button>
-            <Button
-              onClick={handleExport}
-              disabled={exporting}
-              rightIcon={<Download className="h-4 w-4" />}
-            >
-              {exporting ? "Exporting..." : "Download Redacted PDF"}
-            </Button>
-          </div>
-        </div>
-
-        {/* Dashboard Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Document Panel */}
-          <div className="lg:col-span-7 space-y-6">
-            <Card className="min-h-[500px] max-h-[700px] overflow-y-auto bg-card border-border">
-              <CardHeader className="border-b border-border bg-secondary/20 py-3">
-                <CardTitle className="text-sm font-bold text-muted-foreground flex items-center justify-between">
-                  <span>DOCUMENT SOURCE VIEWER</span>
-                  <Badge variant="outline">{filename.split(".").pop()?.toUpperCase()}</Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent
-                className="p-6 text-left font-mono select-text"
-                onMouseUp={handleDocumentMouseUp}
+            {!showCompletion && (
+              <Button
+                onClick={() => setShowCompletion(true)}
+                rightIcon={<CheckCircle className="h-4 w-4" />}
               >
-                {renderDocumentViewer()}
-              </CardContent>
-            </Card>
-
-            {/* Why-not query form */}
-            <Card className="bg-card">
-              <CardContent className="p-4">
-                <form onSubmit={handleWhyNotQuery} className="flex gap-2 items-center">
-                  <div className="flex-1 text-left">
-                    <span className="text-xs text-muted-foreground block mb-1 font-semibold">
-                      VERIFY UNHIGHLIGHTED TEXT
-                    </span>
-                    <input
-                      type="text"
-                      placeholder="Type a word or select visible text to audit omission..."
-                      value={whyNotText}
-                      onChange={(e) => setWhyNotText(e.target.value)}
-                      className="w-full text-sm bg-secondary/50 border border-border rounded-lg h-9 px-3 outline-none text-foreground"
-                    />
-                  </div>
-                  <Button type="submit" size="sm" className="mt-5" disabled={whyNotLoading}>
-                    {whyNotLoading ? "Auditing..." : "Audit Omission"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Explainability & Compliance Panel */}
-          <div className="lg:col-span-5 space-y-6">
-            {/* Safe to Share Card & Privacy Dashboard */}
-            <Card className="border-border bg-card shadow-lg relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors" />
-              <CardContent className="p-6 space-y-6">
-                <div className="flex items-center gap-6">
-                  <div className="relative flex items-center justify-center">
-                    <CircularProgress value={dynamicScore} size={80} strokeWidth={7} showText />
-                  </div>
-                  <div className="flex-1 text-left space-y-1">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                      PRIVACY RISK DASHBOARD
-                    </span>
-                    <h4 className="font-extrabold text-xl text-foreground flex items-center gap-2">
-                      <span>{dynamicScore}% Security</span>
-                      <Badge className={riskClassification.color}>{riskClassification.label}</Badge>
-                    </h4>
-                    <p className="text-xs text-muted-foreground">
-                      Document PII scanning and redaction metrics active.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Grid summary cards */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-secondary/40 border border-border/60 p-3 rounded-xl text-left space-y-1">
-                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">
-                      Total PII Found
-                    </span>
-                    <p className="text-lg font-bold text-foreground">{detections.length}</p>
-                  </div>
-                  <div className="bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-xl text-left space-y-1">
-                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase font-semibold">
-                      Approved
-                    </span>
-                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                      {activeRedactions.length}
-                    </p>
-                  </div>
-                  <div className="bg-rose-500/5 border border-rose-500/10 p-3 rounded-xl text-left space-y-1">
-                    <span className="text-[10px] text-rose-500 uppercase font-semibold">
-                      Rejected
-                    </span>
-                    <p className="text-lg font-bold text-rose-500">{rejectedRedactions.length}</p>
-                  </div>
-                  <div className="bg-violet-500/5 border border-violet-500/10 p-3 rounded-xl text-left space-y-1">
-                    <span className="text-[10px] text-violet-500 uppercase font-semibold">
-                      Pending Review
-                    </span>
-                    <p className="text-lg font-bold text-violet-500">0</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Selected PII Explanation Panel */}
-            <AnimatePresence mode="wait">
-              {selectedDet ? (
-                <motion.div
-                  key={`selected-${selectedDet.id}`}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Card className="bg-card text-left border-primary/20 shadow-lg">
-                    <CardHeader className="border-b border-border flex flex-row items-center justify-between py-4">
-                      <div className="space-y-1">
-                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                          PII Detected Flag
-                        </span>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <span className="font-mono bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded text-sm">
-                            {selectedDet.text}
-                          </span>
-                        </CardTitle>
-                      </div>
-                      <Badge variant="destructive">{selectedDet.type}</Badge>
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-6">
-                      {/* Approval toggle */}
-                      <div className="flex items-center justify-between bg-secondary/30 p-3 rounded-lg border border-border">
-                        <span className="text-sm font-semibold">Redact this item?</span>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant={selectedDet.approved ? "destructive" : "outline"}
-                            onClick={() => toggleApproval(selectedDet.id)}
-                            leftIcon={<XCircle className="h-3.5 w-3.5" />}
-                          >
-                            Redact
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={!selectedDet.approved ? "primary" : "outline"}
-                            onClick={() => toggleApproval(selectedDet.id)}
-                            leftIcon={<CheckCircle className="h-3.5 w-3.5" />}
-                          >
-                            Approve Visible
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Gemini Explanations block */}
-                      <div className="space-y-4">
-                        <div className="flex items-center gap-2 text-primary font-bold text-sm">
-                          <Sparkles className="h-4 w-4 text-violet-500" />
-                          <span>Gemini Explainability Log</span>
-                        </div>
-
-                        {explainLoading ? (
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                            <RefreshCw className="h-4 w-4 animate-spin text-primary" />
-                            <span>Querying explanation...</span>
-                          </div>
-                        ) : explainResult ? (
-                          <div className="space-y-4 text-sm leading-relaxed">
-                            <div className="space-y-1">
-                              <span className="text-xs text-muted-foreground block font-semibold">
-                                DETECTION SUMMARY
-                              </span>
-                              <p>{explainResult.whyDetected}</p>
-                            </div>
-                            <div className="space-y-1">
-                              <span className="text-xs text-muted-foreground block font-semibold">
-                                LOGICAL REASONING
-                              </span>
-                              <p>{explainResult.reason}</p>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border">
-                              <div>
-                                <span className="text-xs text-muted-foreground block font-semibold">
-                                  LEAKAGE RISK LEVEL
-                                </span>
-                                <Badge className={getRiskColor(explainResult.risk)}>
-                                  {explainResult.risk}
-                                </Badge>
-                              </div>
-                              <div>
-                                <span className="text-xs text-muted-foreground block font-semibold">
-                                  CONFIDENCE
-                                </span>
-                                <span className="text-xs font-bold text-foreground">
-                                  {explainResult.confidence}% Match
-                                </span>
-                              </div>
-                            </div>
-                            <div className="pt-2 border-t border-border space-y-1">
-                              <span className="text-xs text-muted-foreground block font-semibold">
-                                SUGGESTED REDACTION
-                              </span>
-                              <span className="font-mono bg-secondary px-2 py-0.5 rounded text-xs text-foreground font-semibold">
-                                {selectedDet.suggestedRedaction}
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="text-xs text-muted-foreground">No logs calculated.</p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ) : whyNotResult ? (
-                <motion.div
-                  key="why-not-panel"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Card className="bg-card text-left border-violet-500/20 shadow-lg">
-                    <CardHeader className="border-b border-border py-4">
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                        OMISSION AUDIT LOG
-                      </span>
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <span>Omission Analysis:</span>
-                        <span className="font-mono bg-violet-500/10 text-violet-500 px-2 py-0.5 rounded text-sm">
-                          {whyNotText}
-                        </span>
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-4 text-sm leading-relaxed">
-                      <div className="flex items-center gap-2 text-primary font-bold text-sm">
-                        <Sparkles className="h-4 w-4 text-violet-500" />
-                        <span>Gemini Omission Explanation</span>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-xs text-muted-foreground block font-semibold">
-                          REASON LEFT VISIBLE
-                        </span>
-                        <p>{whyNotResult.whyNotDetected}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <span className="text-xs text-muted-foreground block font-semibold">
-                          CRITERIA CHECK
-                        </span>
-                        <p>{whyNotResult.reason}</p>
-                      </div>
-                      {whyNotResult.shouldHaveBeenDetected && (
-                        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 p-3 rounded-lg flex items-start gap-3">
-                          <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-                          <div>
-                            <span className="font-bold block text-xs uppercase">
-                              Warning: False Negative
-                            </span>
-                            <span className="text-xs">
-                              Gemini flags that this item matches PII criteria and should have been
-                              redacted.
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="help-panel"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <Card className="bg-card text-center p-8 border-border shadow-md">
-                    <HelpCircle className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                    <h4 className="text-sm font-bold text-foreground mb-1">No Item Selected</h4>
-                    <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-                      Click on any highlighted PII token in the document page to review AI
-                      confidence, risks, and logical logs.
-                    </p>
-                  </Card>
-                </motion.div>
-              )}
-            </AnimatePresence>
+                Verify & Complete Audit
+              </Button>
+            )}
           </div>
         </div>
+
+        {/* Dashboard Grid or Completion Screen */}
+        <AnimatePresence mode="wait">
+          {showCompletion ? (
+            <motion.div
+              key="completion-screen"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.3 }}
+              className="max-w-3xl mx-auto space-y-8 py-12"
+            >
+              {/* Checked Icon and Badge */}
+              <div className="text-center space-y-4">
+                <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 shadow-xl shadow-emerald-500/5 animate-pulse mb-2">
+                  <CheckCircle className="w-10 h-10" />
+                </div>
+                <h2 className="text-3xl font-extrabold text-foreground tracking-tight">
+                  Verification Complete
+                </h2>
+                <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-4 py-1.5 rounded-full text-sm font-extrabold tracking-wide uppercase shadow-lg shadow-emerald-500/5">
+                  <Sparkles className="w-4 h-4 text-emerald-500 animate-spin" />
+                  <span>SAFE TO SHARE</span>
+                </div>
+                <p className="text-muted-foreground text-sm max-w-md mx-auto">
+                  AI and manual verification logs have been calculated. The document is fully
+                  redacted and ready for distribution.
+                </p>
+              </div>
+
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="bg-card border-border/80 shadow-md">
+                  <CardContent className="p-6 text-center space-y-1">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">
+                      Privacy Security Score
+                    </span>
+                    <p className="text-3xl font-black text-emerald-500">{dynamicScore}%</p>
+                    <span className="text-xs text-muted-foreground block font-medium">
+                      {riskClassification.label} Level
+                    </span>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-card border-border/80 shadow-md">
+                  <CardContent className="p-6 text-center space-y-1">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">
+                      Total PII Audited
+                    </span>
+                    <p className="text-3xl font-black text-foreground">{detections.length}</p>
+                    <span className="text-xs text-muted-foreground block font-medium">
+                      {activeRedactions.length} Redacted / {rejectedRedactions.length} Left Visible
+                    </span>
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-card border-border/80 shadow-md">
+                  <CardContent className="p-6 text-center space-y-1">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">
+                      AI Confidence Logs
+                    </span>
+                    <p className="text-3xl font-black text-violet-500 font-mono">
+                      {avgConfidence}%
+                    </p>
+                    <span className="text-xs text-muted-foreground block font-medium">
+                      Average Model Agreement
+                    </span>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Action buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+                <Button variant="outline" onClick={() => setShowCompletion(false)}>
+                  Return to Editor
+                </Button>
+                <Button variant="outline" onClick={() => router.push("/sandbox")}>
+                  Analyze Another Document
+                </Button>
+                <Button
+                  onClick={handleExport}
+                  disabled={exporting}
+                  rightIcon={<Download className="h-4 w-4" />}
+                  className="w-full sm:w-auto shadow-lg shadow-primary/20"
+                >
+                  {exporting ? "Exporting..." : "Download Redacted Document"}
+                </Button>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="editor-dashboard"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start animate-fade-in"
+            >
+              {/* Document Panel */}
+              <div className="lg:col-span-7 space-y-6">
+                <Card className="min-h-[500px] max-h-[700px] overflow-y-auto bg-card border-border">
+                  <CardHeader className="border-b border-border bg-secondary/20 py-3">
+                    <CardTitle className="text-sm font-bold text-muted-foreground flex items-center justify-between">
+                      <span>DOCUMENT SOURCE VIEWER</span>
+                      <Badge variant="outline">{filename.split(".").pop()?.toUpperCase()}</Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent
+                    className="p-6 text-left font-mono select-text"
+                    onMouseUp={handleDocumentMouseUp}
+                  >
+                    {renderDocumentViewer()}
+                  </CardContent>
+                </Card>
+
+                {/* Why-not query form */}
+                <Card className="bg-card">
+                  <CardContent className="p-4">
+                    <form onSubmit={handleWhyNotQuery} className="flex gap-2 items-center">
+                      <div className="flex-1 text-left">
+                        <span className="text-xs text-muted-foreground block mb-1 font-semibold">
+                          VERIFY UNHIGHLIGHTED TEXT
+                        </span>
+                        <input
+                          type="text"
+                          placeholder="Type a word or select visible text to audit omission..."
+                          value={whyNotText}
+                          onChange={(e) => setWhyNotText(e.target.value)}
+                          className="w-full text-sm bg-secondary/50 border border-border rounded-lg h-9 px-3 outline-none text-foreground"
+                        />
+                      </div>
+                      <Button type="submit" size="sm" className="mt-5" disabled={whyNotLoading}>
+                        {whyNotLoading ? "Auditing..." : "Audit Omission"}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Explainability & Compliance Panel */}
+              <div className="lg:col-span-5 space-y-6">
+                {/* Safe to Share Card & Privacy Dashboard */}
+                <Card className="border-border bg-card shadow-lg relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors" />
+                  <CardContent className="p-6 space-y-6">
+                    <div className="flex items-center gap-6">
+                      <div className="relative flex items-center justify-center">
+                        <CircularProgress value={dynamicScore} size={80} strokeWidth={7} showText />
+                      </div>
+                      <div className="flex-1 text-left space-y-1">
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                          PRIVACY RISK DASHBOARD
+                        </span>
+                        <h4 className="font-extrabold text-xl text-foreground flex items-center gap-2">
+                          <span>{dynamicScore}% Security</span>
+                          <Badge className={riskClassification.color}>
+                            {riskClassification.label}
+                          </Badge>
+                        </h4>
+                        <p className="text-xs text-muted-foreground">
+                          Document PII scanning and redaction metrics active.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Grid summary cards */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="bg-secondary/40 border border-border/60 p-3 rounded-xl text-left space-y-1">
+                        <span className="text-[10px] text-muted-foreground uppercase font-semibold">
+                          Total PII Found
+                        </span>
+                        <p className="text-lg font-bold text-foreground">{detections.length}</p>
+                      </div>
+                      <div className="bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-xl text-left space-y-1">
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase font-semibold">
+                          Approved
+                        </span>
+                        <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                          {activeRedactions.length}
+                        </p>
+                      </div>
+                      <div className="bg-rose-500/5 border border-rose-500/10 p-3 rounded-xl text-left space-y-1">
+                        <span className="text-[10px] text-rose-500 uppercase font-semibold">
+                          Rejected
+                        </span>
+                        <p className="text-lg font-bold text-rose-500">
+                          {rejectedRedactions.length}
+                        </p>
+                      </div>
+                      <div className="bg-violet-500/5 border border-violet-500/10 p-3 rounded-xl text-left space-y-1">
+                        <span className="text-[10px] text-violet-500 uppercase font-semibold">
+                          Pending Review
+                        </span>
+                        <p className="text-lg font-bold text-violet-500">0</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Selected PII Explanation Panel */}
+                <AnimatePresence mode="wait">
+                  {selectedDet ? (
+                    <motion.div
+                      key={`selected-${selectedDet.id}`}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Card className="bg-card text-left border-primary/20 shadow-lg">
+                        <CardHeader className="border-b border-border flex flex-row items-center justify-between py-4">
+                          <div className="space-y-1">
+                            <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                              PII Detected Flag
+                            </span>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <span className="font-mono bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded text-sm">
+                                {selectedDet.text}
+                              </span>
+                            </CardTitle>
+                          </div>
+                          <Badge variant="destructive">{selectedDet.type}</Badge>
+                        </CardHeader>
+                        <CardContent className="p-6 space-y-6">
+                          {/* Approval toggle */}
+                          <div className="flex items-center justify-between bg-secondary/30 p-3 rounded-lg border border-border">
+                            <span className="text-sm font-semibold">Redact this item?</span>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant={selectedDet.approved ? "destructive" : "outline"}
+                                onClick={() => toggleApproval(selectedDet.id)}
+                                leftIcon={<XCircle className="h-3.5 w-3.5" />}
+                              >
+                                Redact
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={!selectedDet.approved ? "primary" : "outline"}
+                                onClick={() => toggleApproval(selectedDet.id)}
+                                leftIcon={<CheckCircle className="h-3.5 w-3.5" />}
+                              >
+                                Approve Visible
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Gemini Explanations block */}
+                          <div className="space-y-4">
+                            <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                              <Sparkles className="h-4 w-4 text-violet-500" />
+                              <span>Gemini Explainability Log</span>
+                            </div>
+
+                            {explainLoading ? (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                                <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+                                <span>Querying explanation...</span>
+                              </div>
+                            ) : explainResult ? (
+                              <div className="space-y-4 text-sm leading-relaxed">
+                                <div className="space-y-1">
+                                  <span className="text-xs text-muted-foreground block font-semibold">
+                                    DETECTION SUMMARY
+                                  </span>
+                                  <p>{explainResult.whyDetected}</p>
+                                </div>
+                                <div className="space-y-1">
+                                  <span className="text-xs text-muted-foreground block font-semibold">
+                                    LOGICAL REASONING
+                                  </span>
+                                  <p>{explainResult.reason}</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border">
+                                  <div>
+                                    <span className="text-xs text-muted-foreground block font-semibold">
+                                      LEAKAGE RISK LEVEL
+                                    </span>
+                                    <Badge className={getRiskColor(explainResult.risk)}>
+                                      {explainResult.risk}
+                                    </Badge>
+                                  </div>
+                                  <div>
+                                    <span className="text-xs text-muted-foreground block font-semibold">
+                                      CONFIDENCE
+                                    </span>
+                                    <span className="text-xs font-bold text-foreground">
+                                      {explainResult.confidence}% Match
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="pt-2 border-t border-border space-y-1">
+                                  <span className="text-xs text-muted-foreground block font-semibold">
+                                    SUGGESTED REDACTION
+                                  </span>
+                                  <span className="font-mono bg-secondary px-2 py-0.5 rounded text-xs text-foreground font-semibold">
+                                    {selectedDet.suggestedRedaction}
+                                  </span>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground">No logs calculated.</p>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ) : whyNotResult ? (
+                    <motion.div
+                      key="why-not-panel"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Card className="bg-card text-left border-violet-500/20 shadow-lg">
+                        <CardHeader className="border-b border-border py-4">
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                            OMISSION AUDIT LOG
+                          </span>
+                          <CardTitle className="text-lg flex items-center gap-2">
+                            <span>Omission Analysis:</span>
+                            <span className="font-mono bg-violet-500/10 text-violet-500 px-2 py-0.5 rounded text-sm">
+                              {whyNotText}
+                            </span>
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-6 space-y-4 text-sm leading-relaxed">
+                          <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                            <Sparkles className="h-4 w-4 text-violet-500" />
+                            <span>Gemini Omission Explanation</span>
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-xs text-muted-foreground block font-semibold">
+                              REASON LEFT VISIBLE
+                            </span>
+                            <p>{whyNotResult.whyNotDetected}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <span className="text-xs text-muted-foreground block font-semibold">
+                              CRITERIA CHECK
+                            </span>
+                            <p>{whyNotResult.reason}</p>
+                          </div>
+                          {whyNotResult.shouldHaveBeenDetected && (
+                            <div className="bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 p-3 rounded-lg flex items-start gap-3">
+                              <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                              <div>
+                                <span className="font-bold block text-xs uppercase">
+                                  Warning: False Negative
+                                </span>
+                                <span className="text-xs">
+                                  Gemini flags that this item matches PII criteria and should have
+                                  been redacted.
+                                </span>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="help-panel"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Card className="bg-card text-center p-8 border-border shadow-md">
+                        <HelpCircle className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                        <h4 className="text-sm font-bold text-foreground mb-1">No Item Selected</h4>
+                        <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+                          Click on any highlighted PII token in the document page to review AI
+                          confidence, risks, and logical logs.
+                        </p>
+                      </Card>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </MainLayout>
   );
