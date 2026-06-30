@@ -47,12 +47,7 @@ export default function RootLayout({
       <body
         className={`${inter.variable} font-sans min-h-screen bg-background text-foreground antialiased`}
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
+        <ThemeProvider defaultTheme="system">
           <div className="relative flex min-h-screen flex-col">
             <main className="flex-1">{children}</main>
           </div>

@@ -1,4 +1,5 @@
 import * as React from "react";
+import Link from "next/link";
 import { Shield } from "lucide-react";
 
 export function Footer() {
@@ -18,22 +19,28 @@ export function Footer() {
           <h5 className="font-semibold text-foreground text-sm mb-4">Product</h5>
           <ul className="space-y-2 text-sm">
             <li>
-              <a href="#features" className="hover:text-foreground transition-colors duration-155">
+              <Link
+                href="/#features"
+                className="hover:text-foreground transition-colors duration-155"
+              >
                 Features
-              </a>
+              </Link>
             </li>
             <li>
-              <a
-                href="#how-it-works"
+              <Link
+                href="/#how-it-works"
                 className="hover:text-foreground transition-colors duration-155"
               >
                 How It Works
-              </a>
+              </Link>
             </li>
             <li>
-              <a href="#security" className="hover:text-foreground transition-colors duration-155">
+              <Link
+                href="/#security"
+                className="hover:text-foreground transition-colors duration-155"
+              >
                 Security
-              </a>
+              </Link>
             </li>
           </ul>
         </div>
