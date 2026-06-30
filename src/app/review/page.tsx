@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/set-state-in-effect */
 "use client";
 
 import * as React from "react";
@@ -93,65 +94,13 @@ const getRiskColor = (risk: string) => {
 export default function Review() {
   const router = useRouter();
 
-  const [fileId] = React.useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("trustlens_file_id") || "";
-    }
-    return "";
-  });
-  const [documentId] = React.useState(() => {
-    if (typeof window !== "undefined") {
-      return (
-        localStorage.getItem("trustlens_document_id") ||
-        localStorage.getItem("trustlens_file_id") ||
-        ""
-      );
-    }
-    return "";
-  });
-  const [filename] = React.useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("trustlens_filename") || "";
-    }
-    return "";
-  });
-  const [text] = React.useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("trustlens_text") || "";
-    }
-    return "";
-  });
-  const [detections, setDetections] = React.useState<Detection[]>(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cachedAnalysis = localStorage.getItem("trustlens_analysis");
-        if (cachedAnalysis) {
-          const parsed = JSON.parse(cachedAnalysis);
-          return (parsed.detections || []).map((d: Detection) => ({
-            ...d,
-            approved: d.approved !== false,
-          }));
-        }
-      } catch {
-        // ignore
-      }
-    }
-    return [];
-  });
-  const [privacyScore] = React.useState(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const cachedAnalysis = localStorage.getItem("trustlens_analysis");
-        if (cachedAnalysis) {
-          const parsed = JSON.parse(cachedAnalysis);
-          return parsed.privacyScore ?? 100;
-        }
-      } catch {
-        // ignore
-      }
-    }
-    return 100;
-  });
+  const [mounted, setMounted] = React.useState(false);
+  const [fileId, setFileId] = React.useState("");
+  const [documentId, setDocumentId] = React.useState("");
+  const [filename, setFilename] = React.useState("");
+  const [text, setText] = React.useState("");
+  const [detections, setDetections] = React.useState<Detection[]>([]);
+  const [privacyScore, setPrivacyScore] = React.useState(100);
 
   // Explainability
   const [selectedDet, setSelectedDet] = React.useState<Detection | null>(null);
@@ -184,12 +133,36 @@ export default function Review() {
   const [highlightColors, setHighlightColors] = React.useState<"rose" | "violet" | "amber">("rose");
 
   React.useEffect(() => {
-    if (typeof window !== "undefined") {
-      const cachedId = localStorage.getItem("trustlens_file_id");
-      const cachedAnalysis = localStorage.getItem("trustlens_analysis");
-      if (!cachedId || !cachedAnalysis) {
-        router.push("/sandbox");
-      }
+    setMounted(true);
+
+    const cachedId = localStorage.getItem("trustlens_file_id");
+    const cachedAnalysis = localStorage.getItem("trustlens_analysis");
+
+    if (!cachedId || !cachedAnalysis) {
+      router.push("/sandbox");
+      return;
+    }
+
+    const cachedDocId = localStorage.getItem("trustlens_document_id") || cachedId || "";
+    const cachedFilename = localStorage.getItem("trustlens_filename") || "";
+    const cachedText = localStorage.getItem("trustlens_text") || "";
+
+    setFileId(cachedId);
+    setDocumentId(cachedDocId);
+    setFilename(cachedFilename);
+    setText(cachedText);
+
+    try {
+      const parsed = JSON.parse(cachedAnalysis);
+      setDetections(
+        (parsed.detections || []).map((d: Detection) => ({
+          ...d,
+          approved: d.approved !== false,
+        }))
+      );
+      setPrivacyScore(parsed.privacyScore ?? 100);
+    } catch {
+      // ignore
     }
   }, [router]);
 
@@ -435,6 +408,28 @@ export default function Review() {
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
+
+  if (!mounted) {
+    return (
+      <MainLayout>
+        <div className="container py-8 space-y-6">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between border-b border-border pb-6 gap-4 animate-pulse">
+            <div className="text-left">
+              <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+                Verify Document
+              </span>
+              <div className="h-8 w-48 bg-muted rounded mt-2" />
+            </div>
+            <div className="h-10 w-32 bg-muted rounded" />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 h-96 bg-muted rounded-lg animate-pulse" />
+            <div className="h-96 bg-muted rounded-lg animate-pulse" />
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <MainLayout>

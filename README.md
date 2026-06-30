@@ -10,24 +10,18 @@
 
 TrustLens is a production-grade, AI-powered document anonymization and PII detection assistant built to solve the "black box" trust gap in automated compliance. Designed for compliance officers, risk analysts, and security-conscious professionals, TrustLens makes every PII redaction decision transparent, explainable, and verifiable.
 
----
-
-## 📸 Interactive Product Dashboard
-
-Below is a screenshot of the TrustLens verification and review workspace in action, illustrating real-time coordinate highlight mapping and AI explanation panels:
-
-![TrustLens Dashboard Preview](public/screenshot.png)
+![TrustLens Hero](public/hero.png)
 
 ---
 
 ## 📖 Table of Contents
 1. [🌟 Project Vision & Core Features](#-project-vision--core-features)
-2. [⚙️ System Architecture](#%EF%B8%8F-system-architecture)
+2. [⚙️ System Architecture & Workflow](#%EF%B8%8F-system-architecture--workflow)
 3. [📂 Folder Structure](#-folder-structure)
 4. [💻 Technology Stack](#-technology-stack)
 5. [🚀 Local Environment Setup](#-local-environment-setup)
 6. [🔌 API Documentation](#-api-documentation)
-7. [🛠️ Production-Ready Bug Fixes (Sprint 7)](#%EF%B8%8F-production-ready-bug-fixes-sprint-7)
+7. [🛠️ Production-Ready Bug Fixes (Sprint 7 & 8)](#%EF%B8%8F-production-ready-bug-fixes-sprint-7--8)
 
 ---
 
@@ -44,9 +38,11 @@ TrustLens establishes **Trust & Explainability** as first-class citizens. By int
 * **Configurable Privacy Settings**: Adjust confidence thresholds dynamically, swap highlight visual themes, and toggle auto-redaction rules.
 * **Compliance Privacy Reports**: Generate and download complete audit reports (JSON/PDF) listing all identified PII risk metrics.
 
+![TrustLens Features](public/features.png)
+
 ---
 
-## ⚙️ System Architecture
+## ⚙️ System Architecture & Workflow
 
 TrustLens is designed following clean architecture guidelines. Data is processed ephemerally completely in-memory and deleted post-session.
 
@@ -57,6 +53,12 @@ graph TD
     API --> Parsers[PyMuPDF / python-docx Parsers]
     API --> Redactor[PyMuPDF Redaction Engine]
 ```
+
+### The 5-Step Process
+![TrustLens Workflow Steps](public/workflow.png)
+
+### Enterprise-Grade Security Guarantees
+![TrustLens Security Guarantees](public/security.png)
 
 ---
 
@@ -139,6 +141,10 @@ TrustLens/
    GEMINI_API_KEY=your_gemini_api_key_here
    ```
 
+### Uploading & Analyzing Documents
+The upload sandbox tracks text extraction and processing stages in real-time:
+![TrustLens Workspace Upload](public/upload_workspace.png)
+
 ---
 
 ## 🔌 API Documentation
@@ -157,9 +163,11 @@ TrustLens/
 
 ---
 
-## 🛠️ Production-Ready Bug Fixes (Sprint 7)
+## 🛠️ Production-Ready Bug Fixes (Sprint 7 & 8)
 
 For the final version release, we polished the codebase and solved several production bugs:
 * **UUID Download Fix**: Configured header parameters (`Content-Disposition` and exposed headers via CORS) so files download with their original filename (e.g., `contract_redacted.pdf`) rather than internal server UUID filenames.
 * **Auto-Cleanup Background Tasks**: Leveraged FastAPI `BackgroundTasks` to delete temporary redacted files immediately after being served, guaranteeing zero user-data retention on disk.
 * **Navigation Flow Controls**: Disallowed browser redirections to raw API nodes, ensuring that all UI buttons retain focus inside the Next.js single-page application.
+* **React 19 Console Warnings Fixed**: Rewrote the `ThemeProvider` to use local client state and native React Context, moving blocking FOUC-prevention scripts directly into the root `<head>` in `layout.tsx` to eliminate dynamic script injection warnings.
+* **Hydration Mismatch Errors Cleared**: Updated state hooks on the review page to defer reading client-side data (`localStorage` values) until the client mounting cycle is complete, resolving all server-to-client mismatch checks.
