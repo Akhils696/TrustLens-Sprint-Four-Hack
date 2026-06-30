@@ -116,6 +116,23 @@ export default function Review() {
     return Math.round(privacyScore + (100 - privacyScore) * approvedRatio);
   }, [detections, activeRedactions, privacyScore]);
 
+  const riskClassification = React.useMemo(() => {
+    if (dynamicScore >= 90)
+      return {
+        label: "Low Risk",
+        color: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400",
+      };
+    if (dynamicScore >= 70)
+      return {
+        label: "Medium Risk",
+        color: "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400",
+      };
+    return {
+      label: "High Risk",
+      color: "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400",
+    };
+  }, [dynamicScore]);
+
   // Triggers Gemini API explain endpoint to calculate confidence logs for the selected token
   const handleSelectDetection = async (det: Detection) => {
     setSelectedDet(det);
@@ -347,25 +364,56 @@ export default function Review() {
 
           {/* Explainability & Compliance Panel */}
           <div className="lg:col-span-5 space-y-6">
-            {/* Safe to Share Card */}
-            <Card className="border-border bg-card shadow-md">
-              <CardContent className="p-6 flex items-center gap-6">
-                <CircularProgress value={dynamicScore} size={70} strokeWidth={6} showText />
-                <div className="flex-1 text-left space-y-1">
-                  <h4 className="font-extrabold text-lg text-foreground flex items-center gap-2">
-                    <span>Document Safety Score</span>
-                    {dynamicScore >= 90 && (
-                      <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                        Safe To Share
-                      </Badge>
-                    )}
-                  </h4>
-                  <p className="text-xs text-muted-foreground">
-                    {activeRedactions.length} of {detections.length} sensitive items scheduled for
-                    redaction.
-                    {rejectedRedactions.length > 0 &&
-                      ` ${rejectedRedactions.length} risk items left exposed.`}
-                  </p>
+            {/* Safe to Share Card & Privacy Dashboard */}
+            <Card className="border-border bg-card shadow-lg relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors" />
+              <CardContent className="p-6 space-y-6">
+                <div className="flex items-center gap-6">
+                  <div className="relative flex items-center justify-center">
+                    <CircularProgress value={dynamicScore} size={80} strokeWidth={7} showText />
+                  </div>
+                  <div className="flex-1 text-left space-y-1">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                      PRIVACY RISK DASHBOARD
+                    </span>
+                    <h4 className="font-extrabold text-xl text-foreground flex items-center gap-2">
+                      <span>{dynamicScore}% Security</span>
+                      <Badge className={riskClassification.color}>{riskClassification.label}</Badge>
+                    </h4>
+                    <p className="text-xs text-muted-foreground">
+                      Document PII scanning and redaction metrics active.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Grid summary cards */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-secondary/40 border border-border/60 p-3 rounded-xl text-left space-y-1">
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">
+                      Total PII Found
+                    </span>
+                    <p className="text-lg font-bold text-foreground">{detections.length}</p>
+                  </div>
+                  <div className="bg-emerald-500/5 border border-emerald-500/10 p-3 rounded-xl text-left space-y-1">
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase font-semibold">
+                      Approved
+                    </span>
+                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                      {activeRedactions.length}
+                    </p>
+                  </div>
+                  <div className="bg-rose-500/5 border border-rose-500/10 p-3 rounded-xl text-left space-y-1">
+                    <span className="text-[10px] text-rose-500 uppercase font-semibold">
+                      Rejected
+                    </span>
+                    <p className="text-lg font-bold text-rose-500">{rejectedRedactions.length}</p>
+                  </div>
+                  <div className="bg-violet-500/5 border border-violet-500/10 p-3 rounded-xl text-left space-y-1">
+                    <span className="text-[10px] text-violet-500 uppercase font-semibold">
+                      Pending Review
+                    </span>
+                    <p className="text-lg font-bold text-violet-500">0</p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
