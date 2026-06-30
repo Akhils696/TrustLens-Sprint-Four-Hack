@@ -34,6 +34,7 @@ import {
   Shield,
   Eye,
   EyeOff,
+  Settings,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -171,8 +172,16 @@ export default function Review() {
 
   // Sprint 5: Sidebar tab
   const [sidebarTab, setSidebarTab] = React.useState<
-    "explain" | "insights" | "timeline" | "history"
+    "explain" | "insights" | "timeline" | "history" | "settings"
   >("explain");
+
+  // Configurable Privacy Settings
+  const [confidenceThreshold, setConfidenceThreshold] = React.useState<"high" | "medium" | "low">(
+    "low"
+  );
+  const [autoRedact, setAutoRedact] = React.useState(true);
+  const [showConfidence, setShowConfidence] = React.useState(true);
+  const [highlightColors, setHighlightColors] = React.useState<"rose" | "violet" | "amber">("rose");
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
@@ -183,17 +192,27 @@ export default function Review() {
       }
     }
   }, [router]);
+
+  // Apply Confidence Threshold to filter detections
+  const filteredDetections = React.useMemo(() => {
+    return detections.filter((d) => {
+      const thresholdMap = { high: 85, medium: 65, low: 0 };
+      const minConfidence = thresholdMap[confidenceThreshold];
+      return (d.confidence || 0) >= minConfidence;
+    });
+  }, [detections, confidenceThreshold]);
+
   // Derived state
   // ---------------------------------------------------------------------------
 
-  const activeRedactions = detections.filter((d) => d.approved);
-  const rejectedRedactions = detections.filter((d) => !d.approved);
+  const activeRedactions = filteredDetections.filter((d) => d.approved);
+  const rejectedRedactions = filteredDetections.filter((d) => !d.approved);
 
   const dynamicScore = React.useMemo(() => {
-    if (detections.length === 0) return 100;
-    const approvedRatio = activeRedactions.length / detections.length;
+    if (filteredDetections.length === 0) return 100;
+    const approvedRatio = activeRedactions.length / filteredDetections.length;
     return Math.round(privacyScore + (100 - privacyScore) * approvedRatio);
-  }, [detections, activeRedactions, privacyScore]);
+  }, [filteredDetections, activeRedactions, privacyScore]);
 
   const riskClassification = React.useMemo(() => {
     if (dynamicScore >= 90)
@@ -213,10 +232,10 @@ export default function Review() {
   }, [dynamicScore]);
 
   const avgConfidence = React.useMemo(() => {
-    if (detections.length === 0) return 0;
-    const sum = detections.reduce((acc, curr) => acc + (curr.confidence || 0), 0);
-    return Math.round(sum / detections.length);
-  }, [detections]);
+    if (filteredDetections.length === 0) return 0;
+    const sum = filteredDetections.reduce((acc, curr) => acc + (curr.confidence || 0), 0);
+    return Math.round(sum / filteredDetections.length);
+  }, [filteredDetections]);
 
   const timelineSteps = React.useMemo(
     () => getDefaultTimelineSteps(showCompletion ? "complete" : "review"),
@@ -393,7 +412,13 @@ export default function Review() {
                 aria-label={`PII detected: ${match.type} — ${part}. Click to inspect.`}
                 onClick={() => handleSelectDetection(match)}
                 onKeyDown={(e) => e.key === "Enter" && handleSelectDetection(match)}
-                className="bg-rose-500/25 hover:bg-rose-500/35 border-b-2 border-rose-500 text-foreground cursor-pointer rounded px-1 transition-all select-none mx-0.5 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
+                className={`border-b-2 text-foreground cursor-pointer rounded px-1 transition-all select-none mx-0.5 focus:outline-none focus:ring-2 ${
+                  highlightColors === "rose"
+                    ? "bg-rose-500/25 hover:bg-rose-500/35 border-rose-500 focus:ring-rose-500/50"
+                    : highlightColors === "violet"
+                      ? "bg-violet-500/25 hover:bg-violet-500/35 border-violet-500 focus:ring-violet-500/50"
+                      : "bg-amber-500/25 hover:bg-amber-500/35 border-amber-500 focus:ring-amber-500/50"
+                }`}
                 title={`Click to inspect ${match.type}`}
               >
                 {part}
@@ -405,7 +430,7 @@ export default function Review() {
       </p>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, activeRedactions]);
+  }, [text, activeRedactions, highlightColors]);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -709,12 +734,13 @@ export default function Review() {
                 </Card>
 
                 {/* Tabbed sidebar */}
-                <div className="flex gap-1 bg-secondary/50 p-1 rounded-xl border border-border">
+                <div className="flex gap-1 bg-secondary/50 p-1 rounded-xl border border-border flex-wrap sm:flex-nowrap">
                   {[
                     { id: "explain" as const, label: "Explain", icon: Sparkles },
                     { id: "insights" as const, label: "Insights", icon: Shield },
                     { id: "timeline" as const, label: "Timeline", icon: Clock },
                     { id: "history" as const, label: "History", icon: History },
+                    { id: "settings" as const, label: "Settings", icon: Settings },
                   ].map((tab) => {
                     const Icon = tab.icon;
                     return (
@@ -756,7 +782,9 @@ export default function Review() {
                                 <span className="font-mono bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded text-sm">
                                   {selectedDet.text}
                                 </span>
-                                <ConfidencePill value={selectedDet.confidence} />
+                                {showConfidence && (
+                                  <ConfidencePill value={selectedDet.confidence} />
+                                )}
                               </CardTitle>
                             </div>
                             <Badge variant="destructive">{selectedDet.type}</Badge>
@@ -1017,6 +1045,164 @@ export default function Review() {
                               ))}
                             </div>
                           )}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  )}
+
+                  {/* ===== TAB: Settings ===== */}
+                  {sidebarTab === "settings" && (
+                    <motion.div
+                      key="tab-settings"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <Card className="bg-card border-border shadow-lg">
+                        <CardContent className="p-6 space-y-6 text-left">
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider block">
+                            PRIVACY CONTROLS & SETTINGS
+                          </span>
+
+                          {/* Confidence Threshold */}
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-foreground block">
+                              AI CONFIDENCE THRESHOLD
+                            </label>
+                            <p className="text-[11px] text-muted-foreground">
+                              Only highlight matches meeting the minimum AI certainty.
+                            </p>
+                            <div className="grid grid-cols-3 gap-2">
+                              {(["low", "medium", "high"] as const).map((level) => (
+                                <button
+                                  key={level}
+                                  type="button"
+                                  onClick={() => setConfidenceThreshold(level)}
+                                  className={`text-xs font-semibold py-2 px-3 rounded-lg border transition-all uppercase focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                                    confidenceThreshold === level
+                                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                      : "bg-secondary/40 border-border text-muted-foreground hover:text-foreground"
+                                  }`}
+                                >
+                                  {level}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Highlight Colors Selection */}
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold text-foreground block">
+                              HIGHLIGHT COLOR THEME
+                            </label>
+                            <p className="text-[11px] text-muted-foreground">
+                              Choose the marker color for active redactions in the source viewer.
+                            </p>
+                            <div className="grid grid-cols-3 gap-2">
+                              {(["rose", "violet", "amber"] as const).map((color) => (
+                                <button
+                                  key={color}
+                                  type="button"
+                                  onClick={() => setHighlightColors(color)}
+                                  className={`text-xs font-semibold py-2 px-3 rounded-lg border transition-all capitalize flex items-center justify-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                                    highlightColors === color
+                                      ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                      : "bg-secondary/40 border-border text-muted-foreground hover:text-foreground"
+                                  }`}
+                                >
+                                  <span
+                                    className={`w-2.5 h-2.5 rounded-full ${
+                                      color === "rose"
+                                        ? "bg-rose-500"
+                                        : color === "violet"
+                                          ? "bg-violet-500"
+                                          : "bg-amber-500"
+                                    }`}
+                                  />
+                                  {color}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Show Confidence badge toggle */}
+                          <div className="flex items-center justify-between border-t border-border pt-4">
+                            <div className="space-y-0.5">
+                              <label className="text-xs font-bold text-foreground block">
+                                SHOW CONFIDENCE PILLS
+                              </label>
+                              <span className="text-[11px] text-muted-foreground block">
+                                Display AI confidence percentages next to tokens.
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setShowConfidence((p) => !p)}
+                              className={`w-11 h-6 rounded-full transition-colors relative focus:outline-none focus:ring-2 focus:ring-primary/20 ${
+                                showConfidence ? "bg-primary" : "bg-secondary-foreground/20"
+                              }`}
+                              role="switch"
+                              aria-checked={showConfidence}
+                            >
+                              <span
+                                className={`w-4 h-4 rounded-full bg-card absolute top-1 transition-all ${
+                                  showConfidence ? "left-6" : "left-1"
+                                }`}
+                              />
+                            </button>
+                          </div>
+
+                          {/* Bulk Actions */}
+                          <div className="border-t border-border pt-4 space-y-2">
+                            <label className="text-xs font-bold text-foreground block">
+                              BULK EDIT OPERATIONS
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full text-[11px]"
+                                onClick={() => {
+                                  setDetections((prev) =>
+                                    prev.map((d) => ({ ...d, approved: true }))
+                                  );
+                                  setReviewHistory((prev) => [
+                                    {
+                                      detectionId: "bulk-approve",
+                                      detectionText: "Bulk Redact All",
+                                      action: "approved",
+                                      timestamp: new Date(),
+                                    },
+                                    ...prev,
+                                  ]);
+                                }}
+                              >
+                                Redact All
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="w-full text-[11px]"
+                                onClick={() => {
+                                  setDetections((prev) =>
+                                    prev.map((d) => ({ ...d, approved: false }))
+                                  );
+                                  setReviewHistory((prev) => [
+                                    {
+                                      detectionId: "bulk-reject",
+                                      detectionText: "Bulk Keep Visible All",
+                                      action: "rejected",
+                                      timestamp: new Date(),
+                                    },
+                                    ...prev,
+                                  ]);
+                                }}
+                              >
+                                Keep All Visible
+                              </Button>
+                            </div>
+                          </div>
                         </CardContent>
                       </Card>
                     </motion.div>
