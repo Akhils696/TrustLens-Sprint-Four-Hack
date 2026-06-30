@@ -198,6 +198,15 @@ export default function Review() {
     }
   };
 
+  const handleDocumentMouseUp = () => {
+    if (typeof window === "undefined") return;
+    const selection = window.getSelection();
+    const selectedText = selection ? selection.toString().trim() : "";
+    if (selectedText && selectedText.length > 1 && selectedText.length < 100) {
+      setWhyNotText(selectedText);
+    }
+  };
+
   const handleExport = async () => {
     setExporting(true);
     try {
@@ -304,7 +313,10 @@ export default function Review() {
                   <Badge variant="outline">{filename.split(".").pop()?.toUpperCase()}</Badge>
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-6 text-left font-mono">
+              <CardContent
+                className="p-6 text-left font-mono select-text"
+                onMouseUp={handleDocumentMouseUp}
+              >
                 {renderDocumentViewer()}
               </CardContent>
             </Card>
