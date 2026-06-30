@@ -56,19 +56,21 @@ def redact_document(
 def _redact_pdf(file_path: str, redactions: list[str]) -> str:
     out_path = file_path + ".redacted.pdf"
     try:
-        doc = fitz.open(file_path)
-        for page in doc:
-            for phrase in redactions:
-                phrase = phrase.strip()
-                if not phrase:
+        with fitz.open(file_path) as doc:
+            for page in doc:
+                # Ensure it's a fitz.Page object
+                if not isinstance(page, fitz.Page):
                     continue
-                hits = page.search_for(phrase, quads=False)
-                for rect in hits:
-                    # Black filled redaction annotation
-                    page.add_redact_annotation(rect, fill=(0, 0, 0), text="", fontsize=1)
-            page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
-        doc.save(out_path, garbage=4, deflate=True)
-        doc.close()
+                for phrase in redactions:
+                    phrase = phrase.strip()
+                    if not phrase:
+                        continue
+                    hits = page.search_for(phrase, quads=False)
+                    for rect in hits:
+                        # Black filled redaction annotation (fits the required API format)
+                        page.add_redact_annot(rect, fill=(0, 0, 0), text="", fontsize=1)
+                page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
+            doc.save(out_path, garbage=4, deflate=True)
         return out_path
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF redaction failed: {str(e)}")
