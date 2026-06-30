@@ -102,6 +102,7 @@ export default function Review() {
     return Math.round(privacyScore + (100 - privacyScore) * approvedRatio);
   }, [detections, activeRedactions, privacyScore]);
 
+  // Triggers Gemini API explain endpoint to calculate confidence logs for the selected token
   const handleSelectDetection = async (det: Detection) => {
     setSelectedDet(det);
     setWhyNotResult(null);
