@@ -54,6 +54,7 @@ export function Navbar() {
           <Button size="sm">Upload Document</Button>
         </div>
 
+        {/* Mobile menu and theme toggler controls */}
         <div className="flex items-center gap-2 md:hidden">
           <ThemeToggle />
           <button
