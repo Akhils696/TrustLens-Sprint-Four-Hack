@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from parsers import extract_text_from_file
-from gemini_client import analyze_text_for_pii, explain_detection
+from gemini_client import analyze_text_for_pii, explain_detection, explain_why_not
 
 load_dotenv()
 
@@ -14,6 +14,10 @@ class AnalyzeRequest(BaseModel):
     text: str
 
 class ExplainRequest(BaseModel):
+    selectedText: str
+    context: str
+
+class WhyNotRequest(BaseModel):
     selectedText: str
     context: str
 
@@ -75,3 +79,9 @@ async def explain_pii(req: ExplainRequest):
     if not req.selectedText.strip():
         raise HTTPException(status_code=400, detail="Selected text cannot be empty.")
     return explain_detection(req.selectedText, req.context)
+
+@app.post("/api/why-not")
+async def explain_why_not_visible(req: WhyNotRequest):
+    if not req.selectedText.strip():
+        raise HTTPException(status_code=400, detail="Selected text cannot be empty.")
+    return explain_why_not(req.selectedText, req.context)

@@ -116,3 +116,38 @@ def explain_detection(selected_text: str, context: str) -> dict:
             status_code=500,
             detail=f"Gemini API explanation failed: {str(e)}"
         )
+
+def explain_why_not(selected_text: str, context: str) -> dict:
+    model = get_gemini_client()
+    
+    prompt = f"""
+    You are a data privacy auditor. A user is asking why the following text fragment was NOT flagged as Personally Identifiable Information (PII).
+    
+    Selected Text: "{selected_text}"
+    Surrounding Context: "{context}"
+    
+    Explain:
+    1. Why it was not detected (i.e., why it does not meet PII criteria).
+    2. If it SHOULD have been detected (i.e. if it represents a false negative, flag it as such).
+    3. The reasoning behind the decision.
+    
+    You must output ONLY valid JSON matching the exact schema below:
+    {{
+      "whyNotDetected": "[Explanation of why it was left visible]",
+      "shouldHaveBeenDetected": [true or false],
+      "reason": "[Logical explanation of the criteria match]"
+    }}
+    """
+    
+    try:
+        response = model.generate_content(
+            prompt,
+            generation_config={"response_mime_type": "application/json"}
+        )
+        data = json.loads(response.text)
+        return data
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Gemini API why-not failed: {str(e)}"
+        )
