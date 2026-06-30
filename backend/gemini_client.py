@@ -79,3 +79,40 @@ def analyze_text_for_pii(text: str) -> dict:
             status_code=500,
             detail=f"Gemini API analysis failed: {str(e)}"
         )
+
+def explain_detection(selected_text: str, context: str) -> dict:
+    model = get_gemini_client()
+    
+    prompt = f"""
+    You are a data privacy auditor. A user has flagged the following text fragment as Personally Identifiable Information (PII).
+    
+    Selected Text: "{selected_text}"
+    Surrounding Context: "{context}"
+    
+    Explain:
+    1. Why it was detected (what category of PII it represents).
+    2. What specific risk this leak exposes (e.g. Identity Theft, financial liability, compliance breach).
+    3. The detailed logical reason behind the classification.
+    4. Your confidence rating (0-100) in this decision.
+    
+    You must output ONLY valid JSON matching the exact schema below:
+    {{
+      "whyDetected": "[Explanation of why it qualifies as PII]",
+      "risk": "[The leakage risk description]",
+      "reason": "[The logical reasoning behind this detection]",
+      "confidence": [integer confidence value 0-100]
+    }}
+    """
+    
+    try:
+        response = model.generate_content(
+            prompt,
+            generation_config={"response_mime_type": "application/json"}
+        )
+        data = json.loads(response.text)
+        return data
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Gemini API explanation failed: {str(e)}"
+        )

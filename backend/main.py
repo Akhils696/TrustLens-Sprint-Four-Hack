@@ -6,12 +6,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from parsers import extract_text_from_file
-from gemini_client import analyze_text_for_pii
+from gemini_client import analyze_text_for_pii, explain_detection
 
 load_dotenv()
 
 class AnalyzeRequest(BaseModel):
     text: str
+
+class ExplainRequest(BaseModel):
+    selectedText: str
+    context: str
 
 app = FastAPI(title="TrustLens API")
 
@@ -65,3 +69,9 @@ async def analyze_document(req: AnalyzeRequest):
             "detections": []
         }
     return analyze_text_for_pii(req.text)
+
+@app.post("/api/explain")
+async def explain_pii(req: ExplainRequest):
+    if not req.selectedText.strip():
+        raise HTTPException(status_code=400, detail="Selected text cannot be empty.")
+    return explain_detection(req.selectedText, req.context)
