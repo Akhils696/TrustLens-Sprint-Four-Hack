@@ -93,11 +93,15 @@ def analyze_text_for_pii(text: str) -> dict:
 
     prompt = f"""You are a strict data privacy auditor. Analyze the following document and detect ALL Personally Identifiable Information (PII).
 
-Detect these PII categories:
+Use high recall. If a text fragment can help identify, contact, locate, authenticate, financially expose, or uniquely link a person, organization, account, device, transaction, campus, workplace, or institution, include it as a detection. When uncertain, include the item with lower confidence instead of omitting it.
+
+Detect these redactable categories:
 - Names (persons)
 - Phone Numbers
 - Emails
 - Addresses (physical)
+- Locations (cities, localities, landmarks, branches, office locations, hometowns, hostels, campuses)
+- Colleges, universities, schools, institutes, departments, employers, and organization names when tied to a person or private document context
 - Aadhaar (Indian UID)
 - PAN (Indian Tax ID)
 - Passport details
@@ -110,6 +114,10 @@ Detect these PII categories:
 - IP Addresses
 - Dates of Birth
 - Social Security Numbers
+- Student IDs, roll numbers, registration numbers, admission numbers, and enrollment numbers
+- Usernames, handles, profile URLs, ticket IDs, case IDs, and internal identifiers
+
+Do not limit yourself to regex-style identifiers. Use context. For example, redact college names and locations when they reveal where someone studies, works, lives, visited, or can be found.
 
 Calculate a 'privacyScore' (0-100):
 - 100 = zero PII, completely safe

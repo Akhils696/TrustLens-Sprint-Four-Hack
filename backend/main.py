@@ -180,6 +180,27 @@ LABELED_PII_RULES = [
         "risk": "Critical - banking account exposure",
         "suggested": "[REDACTED_BANK_ACCOUNT]",
     },
+    {
+        "type": "Institution",
+        "labels": r"(?:college|university|school|institute|institution|department|employer|company|organization|organisation)",
+        "confidence": 82,
+        "risk": "Medium - institution or campus affiliation exposure",
+        "suggested": "[REDACTED_INSTITUTION]",
+    },
+    {
+        "type": "Location",
+        "labels": r"(?:location|city|hometown|hostel|campus|branch|office|landmark|place|venue)",
+        "confidence": 82,
+        "risk": "Medium - location or place exposure",
+        "suggested": "[REDACTED_LOCATION]",
+    },
+    {
+        "type": "Student ID",
+        "labels": r"(?:student\s+id|roll\s+no|roll\s+number|registration\s+no|registration\s+number|admission\s+no|admission\s+number|enrollment\s+no|enrollment\s+number)",
+        "confidence": 88,
+        "risk": "High - academic identity reference exposure",
+        "suggested": "[REDACTED_STUDENT_ID]",
+    },
 ]
 
 app.add_middleware(
@@ -756,7 +777,7 @@ def _pattern_detection(rule: dict, value: str, index: int) -> dict:
 def _clean_labeled_value(value: str) -> str:
     value = value.strip(" \t:-#")
     value = re.split(
-        r"\s{2,}|\b(?:phone|email|address|dob|date of birth|pan|aadhaar|account|ifsc)\b\s*[:#-]",
+        r"\s{2,}|\b(?:phone|email|address|dob|date of birth|pan|aadhaar|account|ifsc|college|university|school|location|city|student id|roll no)\b\s*[:#-]",
         value,
         maxsplit=1,
         flags=re.IGNORECASE,
@@ -824,9 +845,9 @@ def _score_from_detections(detections: list[dict]) -> int:
         entity_type = str(detection.get("type", "")).lower()
         if "critical" in risk or any(t in entity_type for t in ("aadhaar", "pan", "ssn", "card", "bank")):
             risk_points += 18
-        elif "high" in risk or any(t in entity_type for t in ("email", "phone", "address", "passport", "birth")):
+        elif "high" in risk or any(t in entity_type for t in ("email", "phone", "address", "passport", "birth", "student")):
             risk_points += 12
-        elif "medium" in risk:
+        elif "medium" in risk or any(t in entity_type for t in ("institution", "location", "college", "university", "school", "campus")):
             risk_points += 7
         else:
             risk_points += 4

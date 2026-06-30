@@ -88,6 +88,14 @@ const getRiskColor = (risk: string) => {
   return "bg-sky-500/10 text-sky-600 border-sky-500/20 dark:text-sky-400";
 };
 
+const getRiskCategory = (risk: string) => {
+  const r = risk.toLowerCase();
+  if (r.includes("critical")) return "Critical";
+  if (r.includes("high") || r.includes("theft")) return "High";
+  if (r.includes("medium") || r.includes("moderate") || r.includes("exposure")) return "Medium";
+  return "Low";
+};
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -848,7 +856,7 @@ export default function Review() {
                                         RISK LEVEL
                                       </span>
                                       <Badge className={getRiskColor(explainResult.risk)}>
-                                        {explainResult.risk}
+                                        {getRiskCategory(explainResult.risk)}
                                       </Badge>
                                     </div>
                                     <div>
