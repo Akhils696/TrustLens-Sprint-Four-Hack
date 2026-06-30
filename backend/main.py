@@ -3,10 +3,15 @@ import uuid
 import shutil
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from dotenv import load_dotenv
 from parsers import extract_text_from_file
+from gemini_client import analyze_text_for_pii
 
 load_dotenv()
+
+class AnalyzeRequest(BaseModel):
+    text: str
 
 app = FastAPI(title="TrustLens API")
 
@@ -51,3 +56,12 @@ async def upload_document(file: UploadFile = File(...)):
         "text": extracted_text,
         "status": "uploaded"
     }
+
+@app.post("/api/analyze")
+async def analyze_document(req: AnalyzeRequest):
+    if not req.text.strip():
+        return {
+            "privacyScore": 100,
+            "detections": []
+        }
+    return analyze_text_for_pii(req.text)
