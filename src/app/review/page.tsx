@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -40,6 +41,17 @@ interface WhyNotResult {
   shouldHaveBeenDetected: boolean;
   reason: string;
 }
+
+const getRiskColor = (risk: string) => {
+  const r = risk.toLowerCase();
+  if (r.includes("high") || r.includes("critical") || r.includes("theft")) {
+    return "bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400";
+  }
+  if (r.includes("medium") || r.includes("moderate") || r.includes("exposure")) {
+    return "bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400";
+  }
+  return "bg-sky-500/10 text-sky-600 border-sky-500/20 dark:text-sky-400";
+};
 
 export default function Review() {
   const router = useRouter();
@@ -347,152 +359,186 @@ export default function Review() {
             </Card>
 
             {/* Selected PII Explanation Panel */}
-            {selectedDet ? (
-              <Card className="bg-card text-left border-primary/20">
-                <CardHeader className="border-b border-border flex flex-row items-center justify-between py-4">
-                  <div className="space-y-1">
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                      PII Detected Flag
-                    </span>
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <span className="font-mono bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded text-sm">
-                        {selectedDet.text}
+            <AnimatePresence mode="wait">
+              {selectedDet ? (
+                <motion.div
+                  key={`selected-${selectedDet.id}`}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Card className="bg-card text-left border-primary/20 shadow-lg">
+                    <CardHeader className="border-b border-border flex flex-row items-center justify-between py-4">
+                      <div className="space-y-1">
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                          PII Detected Flag
+                        </span>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <span className="font-mono bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded text-sm">
+                            {selectedDet.text}
+                          </span>
+                        </CardTitle>
+                      </div>
+                      <Badge variant="destructive">{selectedDet.type}</Badge>
+                    </CardHeader>
+                    <CardContent className="p-6 space-y-6">
+                      {/* Approval toggle */}
+                      <div className="flex items-center justify-between bg-secondary/30 p-3 rounded-lg border border-border">
+                        <span className="text-sm font-semibold">Redact this item?</span>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant={selectedDet.approved ? "destructive" : "outline"}
+                            onClick={() => toggleApproval(selectedDet.id)}
+                            leftIcon={<XCircle className="h-3.5 w-3.5" />}
+                          >
+                            Redact
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={!selectedDet.approved ? "primary" : "outline"}
+                            onClick={() => toggleApproval(selectedDet.id)}
+                            leftIcon={<CheckCircle className="h-3.5 w-3.5" />}
+                          >
+                            Approve Visible
+                          </Button>
+                        </div>
+                      </div>
+
+                      {/* Gemini Explanations block */}
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                          <Sparkles className="h-4 w-4 text-violet-500" />
+                          <span>Gemini Explainability Log</span>
+                        </div>
+
+                        {explainLoading ? (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                            <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+                            <span>Querying explanation...</span>
+                          </div>
+                        ) : explainResult ? (
+                          <div className="space-y-4 text-sm leading-relaxed">
+                            <div className="space-y-1">
+                              <span className="text-xs text-muted-foreground block font-semibold">
+                                DETECTION SUMMARY
+                              </span>
+                              <p>{explainResult.whyDetected}</p>
+                            </div>
+                            <div className="space-y-1">
+                              <span className="text-xs text-muted-foreground block font-semibold">
+                                LOGICAL REASONING
+                              </span>
+                              <p>{explainResult.reason}</p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border">
+                              <div>
+                                <span className="text-xs text-muted-foreground block font-semibold">
+                                  LEAKAGE RISK LEVEL
+                                </span>
+                                <Badge className={getRiskColor(explainResult.risk)}>
+                                  {explainResult.risk}
+                                </Badge>
+                              </div>
+                              <div>
+                                <span className="text-xs text-muted-foreground block font-semibold">
+                                  CONFIDENCE
+                                </span>
+                                <span className="text-xs font-bold text-foreground">
+                                  {explainResult.confidence}% Match
+                                </span>
+                              </div>
+                            </div>
+                            <div className="pt-2 border-t border-border space-y-1">
+                              <span className="text-xs text-muted-foreground block font-semibold">
+                                SUGGESTED REDACTION
+                              </span>
+                              <span className="font-mono bg-secondary px-2 py-0.5 rounded text-xs text-foreground font-semibold">
+                                {selectedDet.suggestedRedaction}
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground">No logs calculated.</p>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ) : whyNotResult ? (
+                <motion.div
+                  key="why-not-panel"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Card className="bg-card text-left border-violet-500/20 shadow-lg">
+                    <CardHeader className="border-b border-border py-4">
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
+                        OMISSION AUDIT LOG
                       </span>
-                    </CardTitle>
-                  </div>
-                  <Badge variant="destructive">{selectedDet.type}</Badge>
-                </CardHeader>
-                <CardContent className="p-6 space-y-6">
-                  {/* Approval toggle */}
-                  <div className="flex items-center justify-between bg-secondary/30 p-3 rounded-lg border border-border">
-                    <span className="text-sm font-semibold">Redact this item?</span>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant={selectedDet.approved ? "destructive" : "outline"}
-                        onClick={() => toggleApproval(selectedDet.id)}
-                        leftIcon={<XCircle className="h-3.5 w-3.5" />}
-                      >
-                        Redact
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant={!selectedDet.approved ? "primary" : "outline"}
-                        onClick={() => toggleApproval(selectedDet.id)}
-                        leftIcon={<CheckCircle className="h-3.5 w-3.5" />}
-                      >
-                        Approve Visible
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Gemini Explanations block */}
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2 text-primary font-bold text-sm">
-                      <Sparkles className="h-4 w-4 text-violet-500" />
-                      <span>Gemini Explainability Log</span>
-                    </div>
-
-                    {explainLoading ? (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                        <RefreshCw className="h-4 w-4 animate-spin text-primary" />
-                        <span>Querying explanation...</span>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <span>Omission Analysis:</span>
+                        <span className="font-mono bg-violet-500/10 text-violet-500 px-2 py-0.5 rounded text-sm">
+                          {whyNotText}
+                        </span>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6 space-y-4 text-sm leading-relaxed">
+                      <div className="flex items-center gap-2 text-primary font-bold text-sm">
+                        <Sparkles className="h-4 w-4 text-violet-500" />
+                        <span>Gemini Omission Explanation</span>
                       </div>
-                    ) : explainResult ? (
-                      <div className="space-y-4 text-sm leading-relaxed">
-                        <div className="space-y-1">
-                          <span className="text-xs text-muted-foreground block font-semibold">
-                            DETECTION SUMMARY
-                          </span>
-                          <p>{explainResult.whyDetected}</p>
-                        </div>
-                        <div className="space-y-1">
-                          <span className="text-xs text-muted-foreground block font-semibold">
-                            LOGICAL REASONING
-                          </span>
-                          <p>{explainResult.reason}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 pt-2 border-t border-border">
+                      <div className="space-y-1">
+                        <span className="text-xs text-muted-foreground block font-semibold">
+                          REASON LEFT VISIBLE
+                        </span>
+                        <p>{whyNotResult.whyNotDetected}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-xs text-muted-foreground block font-semibold">
+                          CRITERIA CHECK
+                        </span>
+                        <p>{whyNotResult.reason}</p>
+                      </div>
+                      {whyNotResult.shouldHaveBeenDetected && (
+                        <div className="bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 p-3 rounded-lg flex items-start gap-3">
+                          <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
                           <div>
-                            <span className="text-xs text-muted-foreground block font-semibold">
-                              LEAKAGE RISK
+                            <span className="font-bold block text-xs uppercase">
+                              Warning: False Negative
                             </span>
-                            <span className="text-xs font-bold text-rose-500 uppercase">
-                              {explainResult.risk}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-xs text-muted-foreground block font-semibold">
-                              CONFIDENCE
-                            </span>
-                            <span className="text-xs font-bold text-foreground">
-                              {explainResult.confidence}% Match
+                            <span className="text-xs">
+                              Gemini flags that this item matches PII criteria and should have been
+                              redacted.
                             </span>
                           </div>
                         </div>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">No logs calculated.</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ) : whyNotResult ? (
-              <Card className="bg-card text-left border-violet-500/20">
-                <CardHeader className="border-b border-border py-4">
-                  <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">
-                    OMISSION AUDIT LOG
-                  </span>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <span>Omission Analysis:</span>
-                    <span className="font-mono bg-violet-500/10 text-violet-500 px-2 py-0.5 rounded text-sm">
-                      {whyNotText}
-                    </span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="p-6 space-y-4 text-sm leading-relaxed">
-                  <div className="flex items-center gap-2 text-primary font-bold text-sm">
-                    <Sparkles className="h-4 w-4 text-violet-500" />
-                    <span>Gemini Omission Explanation</span>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-xs text-muted-foreground block font-semibold">
-                      REASON LEFT VISIBLE
-                    </span>
-                    <p>{whyNotResult.whyNotDetected}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-xs text-muted-foreground block font-semibold">
-                      CRITERIA CHECK
-                    </span>
-                    <p>{whyNotResult.reason}</p>
-                  </div>
-                  {whyNotResult.shouldHaveBeenDetected && (
-                    <div className="bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 p-3 rounded-lg flex items-start gap-3">
-                      <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
-                      <div>
-                        <span className="font-bold block text-xs uppercase">
-                          Warning: False Negative
-                        </span>
-                        <span className="text-xs">
-                          Gemini flags that this item matches PII criteria and should have been
-                          redacted.
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="bg-card text-center p-8 border-border">
-                <HelpCircle className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                <h4 className="text-sm font-bold text-foreground mb-1">No Item Selected</h4>
-                <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-                  Click on any highlighted PII token in the document page to review AI confidence,
-                  risks, and logical logs.
-                </p>
-              </Card>
-            )}
+                      )}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="help-panel"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <Card className="bg-card text-center p-8 border-border shadow-md">
+                    <HelpCircle className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+                    <h4 className="text-sm font-bold text-foreground mb-1">No Item Selected</h4>
+                    <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+                      Click on any highlighted PII token in the document page to review AI
+                      confidence, risks, and logical logs.
+                    </p>
+                  </Card>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>
