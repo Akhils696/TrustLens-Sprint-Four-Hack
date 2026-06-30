@@ -96,6 +96,7 @@ export default function Review() {
   const rejectedRedactions = detections.filter((d) => !d.approved);
 
   // Calculate dynamic security score: score increases back to 100 as risks are approved
+  // Dynamically recalculate safety metric score showing safe-to-share index compliance
   const dynamicScore = React.useMemo(() => {
     if (detections.length === 0) return 100;
     const approvedRatio = activeRedactions.length / detections.length;
