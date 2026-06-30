@@ -3,10 +3,12 @@ import uuid
 import shutil
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from parsers import extract_text_from_file
 from gemini_client import analyze_text_for_pii, explain_detection, explain_why_not
+from redactor import redact_document
 
 load_dotenv()
 
@@ -20,6 +22,11 @@ class ExplainRequest(BaseModel):
 class WhyNotRequest(BaseModel):
     selectedText: str
     context: str
+
+class ExportRequest(BaseModel):
+    fileId: str
+    filename: str
+    redactions: list[str]
 
 app = FastAPI(title="TrustLens API")
 
@@ -85,3 +92,24 @@ async def explain_why_not_visible(req: WhyNotRequest):
     if not req.selectedText.strip():
         raise HTTPException(status_code=400, detail="Selected text cannot be empty.")
     return explain_why_not(req.selectedText, req.context)
+
+@app.post("/api/export")
+async def export_redacted_document(req: ExportRequest):
+    ext = os.path.splitext(req.filename)[1].lower()
+    stored_filename = f"{req.fileId}{ext}"
+    file_path = os.path.join(UPLOAD_DIR, stored_filename)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Original document not found. Please upload again.")
+        
+    redacted_path = redact_document(file_path, req.filename, req.redactions)
+    
+    export_name = f"redacted_{req.filename}"
+    if not export_name.endswith(".pdf") and ext in [".txt", ".docx"]:
+        export_name = os.path.splitext(export_name)[0] + ".pdf"
+        
+    return FileResponse(
+        redacted_path,
+        media_type="application/pdf",
+        filename=export_name
+    )
