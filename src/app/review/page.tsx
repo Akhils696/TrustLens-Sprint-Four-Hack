@@ -25,6 +25,7 @@ interface Detection {
   reason: string;
   risk: string;
   suggestedRedaction: string;
+  approved?: boolean;
 }
 
 interface ExplainResult {
@@ -367,7 +368,7 @@ export default function Review() {
                     <span className="text-sm font-semibold">Redact this item?</span>
                     <div className="flex gap-2">
                       <Button
-                        size="xs"
+                        size="sm"
                         variant={selectedDet.approved ? "destructive" : "outline"}
                         onClick={() => toggleApproval(selectedDet.id)}
                         leftIcon={<XCircle className="h-3.5 w-3.5" />}
@@ -375,8 +376,8 @@ export default function Review() {
                         Redact
                       </Button>
                       <Button
-                        size="xs"
-                        variant={!selectedDet.approved ? "success" : "outline"}
+                        size="sm"
+                        variant={!selectedDet.approved ? "primary" : "outline"}
                         onClick={() => toggleApproval(selectedDet.id)}
                         leftIcon={<CheckCircle className="h-3.5 w-3.5" />}
                       >
