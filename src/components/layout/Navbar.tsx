@@ -69,7 +69,7 @@ export function Navbar() {
             <GithubIcon className="h-5 w-5" />
           </a>
           <ThemeToggle />
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={() => router.push("/sandbox")}>
             Log In
           </Button>
           <Button
@@ -109,7 +109,14 @@ export function Navbar() {
             ))}
           </nav>
           <div className="flex flex-col gap-2 pt-2 border-t border-border">
-            <Button variant="outline" className="w-full">
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                router.push("/sandbox");
+                setIsOpen(false);
+              }}
+            >
               Log In
             </Button>
             <Button
