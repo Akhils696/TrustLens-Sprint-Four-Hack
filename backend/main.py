@@ -71,6 +71,117 @@ ALLOWED_MIMES = {
 }
 MAX_FILE_BYTES = 20 * 1024 * 1024  # 20 MB
 
+PII_PATTERN_RULES = [
+    {
+        "type": "Email Address",
+        "pattern": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
+        "confidence": 99,
+        "risk": "High - direct contact identifier exposure",
+        "suggested": "[REDACTED_EMAIL]",
+    },
+    {
+        "type": "Phone Number",
+        "pattern": r"(?<!\d)(?:\+\d{1,3}[\s.-]?)?(?:\d{5}[\s.-]?\d{5}|\d{3}[\s.-]?\d{3}[\s.-]?\d{4}|\d{10})(?!\d)",
+        "confidence": 92,
+        "risk": "High - direct contact identifier exposure",
+        "suggested": "[REDACTED_PHONE]",
+    },
+    {
+        "type": "Aadhaar Number",
+        "pattern": r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b",
+        "confidence": 98,
+        "risk": "Critical - government identity number exposure",
+        "suggested": "[REDACTED_AADHAAR]",
+    },
+    {
+        "type": "PAN Number",
+        "pattern": r"\b[A-Z]{5}\d{4}[A-Z]\b",
+        "confidence": 97,
+        "risk": "Critical - tax identity number exposure",
+        "suggested": "[REDACTED_PAN]",
+    },
+    {
+        "type": "IFSC Code",
+        "pattern": r"\b[A-Z]{4}0[A-Z0-9]{6}\b",
+        "confidence": 96,
+        "risk": "High - banking identifier exposure",
+        "suggested": "[REDACTED_IFSC]",
+    },
+    {
+        "type": "Credit / Debit Card Number",
+        "pattern": r"\b(?:\d[ -]*?){13,19}\b",
+        "confidence": 90,
+        "risk": "Critical - payment card exposure",
+        "suggested": "[REDACTED_CARD]",
+    },
+    {
+        "type": "IP Address",
+        "pattern": r"\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b",
+        "confidence": 95,
+        "risk": "Medium - network identifier exposure",
+        "suggested": "[REDACTED_IP]",
+    },
+    {
+        "type": "Social Security Number",
+        "pattern": r"\b\d{3}-\d{2}-\d{4}\b",
+        "confidence": 97,
+        "risk": "Critical - government identity number exposure",
+        "suggested": "[REDACTED_SSN]",
+    },
+    {
+        "type": "Passport Number",
+        "pattern": r"\b[A-Z][0-9]{7}\b",
+        "confidence": 88,
+        "risk": "High - travel identity document exposure",
+        "suggested": "[REDACTED_PASSPORT]",
+    },
+    {
+        "type": "Vehicle Number",
+        "pattern": r"\b[A-Z]{2}[\s-]?\d{1,2}[\s-]?[A-Z]{1,3}[\s-]?\d{4}\b",
+        "confidence": 90,
+        "risk": "Medium - vehicle registration identifier exposure",
+        "suggested": "[REDACTED_VEHICLE]",
+    },
+]
+
+LABELED_PII_RULES = [
+    {
+        "type": "Name",
+        "labels": r"(?:full\s+name|customer\s+name|client\s+name|patient\s+name|employee\s+name|name)",
+        "confidence": 88,
+        "risk": "High - personal name exposure",
+        "suggested": "[REDACTED_NAME]",
+    },
+    {
+        "type": "Address",
+        "labels": r"(?:address|residential\s+address|billing\s+address|shipping\s+address)",
+        "confidence": 86,
+        "risk": "High - physical location exposure",
+        "suggested": "[REDACTED_ADDRESS]",
+    },
+    {
+        "type": "Date of Birth",
+        "labels": r"(?:dob|date\s+of\s+birth|birth\s+date)",
+        "confidence": 92,
+        "risk": "High - birth date identity attribute exposure",
+        "suggested": "[REDACTED_DOB]",
+    },
+    {
+        "type": "Employee ID",
+        "labels": r"(?:employee\s+id|emp\s+id|staff\s+id|user\s+id|customer\s+id|client\s+id|account\s+id)",
+        "confidence": 84,
+        "risk": "Medium - internal identity reference exposure",
+        "suggested": "[REDACTED_ID]",
+    },
+    {
+        "type": "Bank Account Number",
+        "labels": r"(?:account\s+number|bank\s+account|acct\s+no|a/c\s+no)",
+        "confidence": 92,
+        "risk": "Critical - banking account exposure",
+        "suggested": "[REDACTED_BANK_ACCOUNT]",
+    },
+]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -243,13 +354,18 @@ async def analyze_document(req: AnalyzeRequest):
         store.save(record)
 
     raw = analyze_text_for_pii(text)
-    privacy_score = int(raw.get("privacyScore", 100))
     raw_detections: list[dict] = raw.get("detections", [])
+    pattern_detections = _detect_pattern_pii(text)
+    merged_detections = _merge_detections(raw_detections, pattern_detections)
+    privacy_score = min(
+        int(raw.get("privacyScore", 100)),
+        _score_from_detections(merged_detections),
+    )
 
     # Map raw detections into typed DetectionRecords and locate positions
     lines = text.splitlines()
     det_records: list[DetectionRecord] = []
-    for d in raw_detections:
+    for d in merged_detections:
         det_text = d.get("text", "")
         page_num, line_num = _locate_text(det_text, text, lines)
         rec = DetectionRecord(
@@ -583,6 +699,139 @@ def _estimate_page(line_num: int, lines: list[str]) -> int:
         if m:
             page = int(m.group(1))
     return page
+
+
+def _detect_pattern_pii(text: str) -> list[dict]:
+    """Catch structured PII that should not depend only on model recall."""
+    detections: list[dict] = []
+    seen_spans: set[tuple[int, int]] = set()
+    priority = {
+        "Aadhaar Number": 0,
+        "PAN Number": 0,
+        "Social Security Number": 0,
+        "Credit / Debit Card Number": 1,
+        "Bank Account Number": 1,
+        "IFSC Code": 1,
+        "Phone Number": 2,
+    }
+
+    for rule in sorted(PII_PATTERN_RULES, key=lambda item: priority.get(item["type"], 3)):
+        for match in re.finditer(rule["pattern"], text, flags=re.IGNORECASE):
+            value = match.group(0).strip()
+            if not _is_valid_pattern_match(rule["type"], value):
+                continue
+            span = match.span()
+            if span in seen_spans:
+                continue
+            seen_spans.add(span)
+            detections.append(_pattern_detection(rule, value, len(detections) + 1))
+
+    for rule in LABELED_PII_RULES:
+        pattern = rf"\b{rule['labels']}\b\s*(?:[:#-]|\bis\b)?\s*([^\n\r,;|]{{2,80}})"
+        for match in re.finditer(pattern, text, flags=re.IGNORECASE):
+            value = _clean_labeled_value(match.group(1))
+            if not value:
+                continue
+            span = match.span(1)
+            if span in seen_spans:
+                continue
+            seen_spans.add(span)
+            detections.append(_pattern_detection(rule, value, len(detections) + 1))
+
+    return detections
+
+
+def _pattern_detection(rule: dict, value: str, index: int) -> dict:
+    return {
+        "id": f"pattern-{index}",
+        "text": value,
+        "type": rule["type"],
+        "confidence": rule["confidence"],
+        "reason": f"Matched a local high-recall {rule['type']} detector.",
+        "risk": rule["risk"],
+        "suggestedRedaction": rule["suggested"],
+    }
+
+
+def _clean_labeled_value(value: str) -> str:
+    value = value.strip(" \t:-#")
+    value = re.split(
+        r"\s{2,}|\b(?:phone|email|address|dob|date of birth|pan|aadhaar|account|ifsc)\b\s*[:#-]",
+        value,
+        maxsplit=1,
+        flags=re.IGNORECASE,
+    )[0]
+    return value.strip(" \t.,;:-#")
+
+
+def _is_valid_pattern_match(entity_type: str, value: str) -> bool:
+    digits = re.sub(r"\D", "", value)
+
+    if entity_type == "Phone Number":
+        return 10 <= len(digits) <= 15
+    if entity_type == "Aadhaar Number":
+        return len(digits) == 12
+    if entity_type == "Credit / Debit Card Number":
+        return 13 <= len(digits) <= 19 and _passes_luhn(digits)
+    if entity_type == "Passport Number":
+        return bool(re.search(r"\d", value))
+
+    return len(value.strip()) >= 3
+
+
+def _passes_luhn(number: str) -> bool:
+    total = 0
+    double = False
+    for digit in reversed(number):
+        n = int(digit)
+        if double:
+            n *= 2
+            if n > 9:
+                n -= 9
+        total += n
+        double = not double
+    return total % 10 == 0
+
+
+def _merge_detections(ai_detections: list[dict], pattern_detections: list[dict]) -> list[dict]:
+    merged: list[dict] = []
+    seen: set[str] = set()
+
+    for detection in [*ai_detections, *pattern_detections]:
+        text_value = str(detection.get("text", "")).strip()
+        if not text_value:
+            continue
+        key = _normalize_detection_text(text_value)
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append({**detection, "text": text_value})
+
+    return merged
+
+
+def _normalize_detection_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip().lower())
+
+
+def _score_from_detections(detections: list[dict]) -> int:
+    if not detections:
+        return 100
+
+    risk_points = 0
+    for detection in detections:
+        risk = str(detection.get("risk", "")).lower()
+        entity_type = str(detection.get("type", "")).lower()
+        if "critical" in risk or any(t in entity_type for t in ("aadhaar", "pan", "ssn", "card", "bank")):
+            risk_points += 18
+        elif "high" in risk or any(t in entity_type for t in ("email", "phone", "address", "passport", "birth")):
+            risk_points += 12
+        elif "medium" in risk:
+            risk_points += 7
+        else:
+            risk_points += 4
+
+    return max(5, 100 - min(risk_points, 95))
 
 
 def _build_risk_summary(detections: list[DetectionRecord]) -> RiskSummary:
