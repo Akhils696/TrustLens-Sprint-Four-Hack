@@ -12,7 +12,6 @@ export default function Sandbox() {
   const [dragActive, setDragActive] = React.useState(false);
 
   const [status, setStatus] = React.useState<"idle" | "uploading" | "analyzing" | "failed">("idle");
-  const [statusMessage, setStatusMessage] = React.useState("");
   const [errorMsg, setErrorMsg] = React.useState("");
 
   const [stages, setStages] = React.useState([
@@ -173,12 +172,16 @@ export default function Sandbox() {
         {status === "idle" || status === "failed" ? (
           <div className="space-y-6">
             <div
+              role="button"
+              tabIndex={0}
+              aria-label="Upload document. Drag and drop or click to browse files."
               onDragEnter={handleDrag}
               onDragOver={handleDrag}
               onDragLeave={handleDrag}
               onDrop={handleDrop}
               onClick={triggerFileInput}
-              className={`border-2 border-dashed rounded-2xl p-12 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 bg-card select-none ${
+              onKeyDown={(e) => e.key === "Enter" && triggerFileInput()}
+              className={`border-2 border-dashed rounded-2xl p-12 flex flex-col items-center justify-center cursor-pointer transition-all duration-200 bg-card select-none focus:outline-none focus:ring-2 focus:ring-primary/50 ${
                 dragActive
                   ? "border-primary bg-primary/5"
                   : "border-border hover:border-muted-foreground/60"
@@ -204,7 +207,11 @@ export default function Sandbox() {
             </div>
 
             {errorMsg && (
-              <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive flex items-center gap-3 text-left max-w-md mx-auto">
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive flex items-center gap-3 text-left max-w-md mx-auto"
+              >
                 <AlertCircle className="h-5 w-5 shrink-0" />
                 <span>{errorMsg}</span>
               </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Menu, X, Shield } from "lucide-react";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ function GithubIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export function Navbar() {
+  const router = useRouter();
   const [isOpen, setIsOpen] = React.useState(false);
 
   const navLinks = [
@@ -70,7 +72,13 @@ export function Navbar() {
           <Button variant="outline" size="sm">
             Log In
           </Button>
-          <Button size="sm">Upload Document</Button>
+          <Button
+            size="sm"
+            onClick={() => router.push("/sandbox")}
+            aria-label="Upload document to sandbox"
+          >
+            Upload Document
+          </Button>
         </div>
 
         {/* Mobile menu and theme toggler controls */}
@@ -104,7 +112,15 @@ export function Navbar() {
             <Button variant="outline" className="w-full">
               Log In
             </Button>
-            <Button className="w-full">Upload Document</Button>
+            <Button
+              className="w-full"
+              onClick={() => {
+                router.push("/sandbox");
+                setIsOpen(false);
+              }}
+            >
+              Upload Document
+            </Button>
           </div>
         </div>
       )}

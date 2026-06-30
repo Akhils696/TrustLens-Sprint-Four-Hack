@@ -8,14 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CircularProgress } from "@/components/ui/progress";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import {
   CheckCircle,
   XCircle,
-  HelpCircle,
+  MousePointerClick,
   Download,
   AlertTriangle,
   RefreshCw,
   Sparkles,
+  ShieldOff,
 } from "lucide-react";
 
 interface Detection {
@@ -73,6 +75,7 @@ export default function Review() {
 
   // Export state
   const [exporting, setExporting] = React.useState(false);
+  const [exportError, setExportError] = React.useState("");
   const [showCompletion, setShowCompletion] = React.useState(false);
 
   React.useEffect(() => {
@@ -141,86 +144,96 @@ export default function Review() {
   }, [detections]);
 
   // Triggers Gemini API explain endpoint to calculate confidence logs for the selected token
-  const handleSelectDetection = async (det: Detection) => {
-    setSelectedDet(det);
-    setWhyNotResult(null);
-    setExplainLoading(true);
-    setExplainResult(null);
+  const handleSelectDetection = React.useCallback(
+    async (det: Detection) => {
+      setSelectedDet(det);
+      setWhyNotResult(null);
+      setExplainLoading(true);
+      setExplainResult(null);
 
-    try {
-      // Find context (150 chars surrounding the text)
-      const startIdx = Math.max(0, text.indexOf(det.text) - 100);
-      const endIdx = Math.min(text.length, text.indexOf(det.text) + det.text.length + 100);
-      const contextSnippet = text.substring(startIdx, endIdx);
+      try {
+        // Find context (150 chars surrounding the text)
+        const startIdx = Math.max(0, text.indexOf(det.text) - 100);
+        const endIdx = Math.min(text.length, text.indexOf(det.text) + det.text.length + 100);
+        const contextSnippet = text.substring(startIdx, endIdx);
 
-      const res = await fetch("http://localhost:8000/api/explain", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          selectedText: det.text,
-          context: contextSnippet,
-        }),
-      });
+        const res = await fetch("http://localhost:8000/api/explain", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            selectedText: det.text,
+            context: contextSnippet,
+          }),
+        });
 
-      if (!res.ok) throw new Error("Failed to load explanation.");
-      const data = await res.json();
-      setExplainResult(data);
-    } catch {
-      setExplainResult({
-        whyDetected: "Failed to generate explanation. Check model connectivity.",
-        risk: "N/A",
-        reason: "Network response issue",
-        confidence: 0,
-      });
-    } finally {
-      setExplainLoading(false);
-    }
-  };
+        if (!res.ok) throw new Error("Failed to load explanation.");
+        const data = await res.json();
+        setExplainResult(data);
+      } catch {
+        setExplainResult({
+          whyDetected: "Failed to generate explanation. Check model connectivity.",
+          risk: "N/A",
+          reason: "Network response issue",
+          confidence: 0,
+        });
+      } finally {
+        setExplainLoading(false);
+      }
+    },
+    [text]
+  );
 
-  const handleWhyNotQuery = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!whyNotText.trim()) return;
+  const handleWhyNotQuery = React.useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!whyNotText.trim()) return;
 
-    setSelectedDet(null);
-    setWhyNotLoading(true);
-    setWhyNotResult(null);
+      setSelectedDet(null);
+      setWhyNotLoading(true);
+      setWhyNotResult(null);
 
-    try {
-      const idx = text.toLowerCase().indexOf(whyNotText.toLowerCase());
-      const startIdx = Math.max(0, idx - 100);
-      const endIdx = Math.min(text.length, idx + whyNotText.length + 100);
-      const contextSnippet = idx !== -1 ? text.substring(startIdx, endIdx) : text.substring(0, 300);
+      try {
+        const idx = text.toLowerCase().indexOf(whyNotText.toLowerCase());
+        const startIdx = Math.max(0, idx - 100);
+        const endIdx = Math.min(text.length, idx + whyNotText.length + 100);
+        const contextSnippet =
+          idx !== -1 ? text.substring(startIdx, endIdx) : text.substring(0, 300);
 
-      const res = await fetch("http://localhost:8000/api/why-not", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          selectedText: whyNotText,
-          context: contextSnippet,
-        }),
-      });
+        const res = await fetch("http://localhost:8000/api/why-not", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            selectedText: whyNotText,
+            context: contextSnippet,
+          }),
+        });
 
-      if (!res.ok) throw new Error("Failed to load why-not explanation.");
-      const data = await res.json();
-      setWhyNotResult(data);
-    } catch {
-      setWhyNotResult({
-        whyNotDetected: "Failed to query model logic.",
-        shouldHaveBeenDetected: false,
-        reason: "Network response issue",
-      });
-    } finally {
-      setWhyNotLoading(false);
-    }
-  };
+        if (!res.ok) throw new Error("Failed to load why-not explanation.");
+        const data = await res.json();
+        setWhyNotResult(data);
+      } catch {
+        setWhyNotResult({
+          whyNotDetected: "Failed to query model logic.",
+          shouldHaveBeenDetected: false,
+          reason: "Network response issue",
+        });
+      } finally {
+        setWhyNotLoading(false);
+      }
+    },
+    [text, whyNotText]
+  );
 
-  const toggleApproval = (id: string) => {
-    setDetections((prev) => prev.map((d) => (d.id === id ? { ...d, approved: !d.approved } : d)));
-    // If updating selected item
-    if (selectedDet && selectedDet.id === id) {
-      setSelectedDet((prev) => (prev ? { ...prev, approved: !prev.approved } : null));
-    }
-  };
+  const toggleApproval = React.useCallback(
+    (id: string) => {
+      setDetections((prev) => prev.map((d) => (d.id === id ? { ...d, approved: !d.approved } : d)));
+      // If updating selected item
+      if (selectedDet && selectedDet.id === id) {
+        setSelectedDet((prev) => (prev ? { ...prev, approved: !prev.approved } : null));
+      }
+    },
+    [selectedDet]
+  );
 
   const handleDocumentMouseUp = () => {
     if (typeof window === "undefined") return;
@@ -231,8 +244,9 @@ export default function Review() {
     }
   };
 
-  const handleExport = async () => {
+  const handleExport = React.useCallback(async () => {
     setExporting(true);
+    setExportError("");
     try {
       const redactionTexts = activeRedactions.map((d) => d.text);
       const res = await fetch("http://localhost:8000/api/export", {
@@ -255,17 +269,23 @@ export default function Review() {
       document.body.appendChild(a);
       a.click();
       a.remove();
-    } catch {
-      alert("Export failed. Please check backend server status.");
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(
+        err instanceof Error ? err.message : "Export failed. Please check backend server status."
+      );
     } finally {
       setExporting(false);
     }
-  };
+  }, [activeRedactions, fileId, filename]);
 
-  // Render text with highlight marks
-  const renderDocumentViewer = () => {
+  // Render text with highlight marks — memoized to avoid re-render on unrelated state changes
+  const renderDocumentViewer = React.useMemo(() => {
     if (!text) return null;
-    if (activeRedactions.length === 0) return <p className="whitespace-pre-wrap">{text}</p>;
+    if (activeRedactions.length === 0)
+      return (
+        <p className="whitespace-pre-wrap text-sm text-foreground/90 leading-relaxed">{text}</p>
+      );
 
     const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const pattern = activeRedactions
@@ -274,7 +294,10 @@ export default function Review() {
       .sort((a, b) => b.length - a.length)
       .join("|");
 
-    if (!pattern) return <p className="whitespace-pre-wrap">{text}</p>;
+    if (!pattern)
+      return (
+        <p className="whitespace-pre-wrap text-sm text-foreground/90 leading-relaxed">{text}</p>
+      );
 
     const regex = new RegExp(`(${pattern})`, "gi");
     const parts = text.split(regex);
@@ -287,8 +310,12 @@ export default function Review() {
             return (
               <mark
                 key={index}
+                role="button"
+                tabIndex={0}
+                aria-label={`PII detected: ${match.type} — ${part}. Click to inspect.`}
                 onClick={() => handleSelectDetection(match)}
-                className="bg-rose-500/25 hover:bg-rose-500/35 border-b-2 border-rose-500 text-foreground cursor-pointer rounded px-1 transition-all select-none mx-0.5"
+                onKeyDown={(e) => e.key === "Enter" && handleSelectDetection(match)}
+                className="bg-rose-500/25 hover:bg-rose-500/35 border-b-2 border-rose-500 text-foreground cursor-pointer rounded px-1 transition-all select-none mx-0.5 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
                 title={`Click to inspect ${match.type}`}
               >
                 {part}
@@ -299,7 +326,8 @@ export default function Review() {
         })}
       </p>
     );
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text, activeRedactions]);
 
   return (
     <MainLayout>
@@ -408,12 +436,28 @@ export default function Review() {
                 <Button
                   onClick={handleExport}
                   disabled={exporting}
+                  aria-label="Download redacted document as PDF"
                   rightIcon={<Download className="h-4 w-4" />}
                   className="w-full sm:w-auto shadow-lg shadow-primary/20"
                 >
                   {exporting ? "Exporting..." : "Download Redacted Document"}
                 </Button>
               </div>
+
+              {/* Export error inline notification */}
+              {exportError && (
+                <div
+                  role="alert"
+                  aria-live="assertive"
+                  className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 text-sm text-destructive flex items-start gap-3 text-left"
+                >
+                  <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold block text-xs uppercase mb-1">Export Failed</span>
+                    <span>{exportError}</span>
+                  </div>
+                </div>
+              )}
             </motion.div>
           ) : (
             <motion.div
@@ -426,7 +470,10 @@ export default function Review() {
             >
               {/* Document Panel */}
               <div className="lg:col-span-7 space-y-6">
-                <Card className="min-h-[500px] max-h-[700px] overflow-y-auto bg-card border-border">
+                <Card
+                  className="min-h-[500px] max-h-[700px] overflow-y-auto bg-card border-border"
+                  aria-label="Document source viewer"
+                >
                   <CardHeader className="border-b border-border bg-secondary/20 py-3">
                     <CardTitle className="text-sm font-bold text-muted-foreground flex items-center justify-between">
                       <span>DOCUMENT SOURCE VIEWER</span>
@@ -437,7 +484,17 @@ export default function Review() {
                     className="p-6 text-left font-mono select-text"
                     onMouseUp={handleDocumentMouseUp}
                   >
-                    {renderDocumentViewer()}
+                    {detections.length === 0 && text ? (
+                      <EmptyState
+                        title="No PII Detected"
+                        description="Gemini found no personally identifiable information in this document. It appears safe to share as-is."
+                        actionLabel="Analyze Another"
+                        onAction={() => router.push("/sandbox")}
+                        className="border-emerald-500/20 bg-emerald-500/5"
+                      />
+                    ) : (
+                      renderDocumentViewer()
+                    )}
                   </CardContent>
                 </Card>
 
@@ -695,14 +752,20 @@ export default function Review() {
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.2 }}
                     >
-                      <Card className="bg-card text-center p-8 border-border shadow-md">
-                        <HelpCircle className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                        <h4 className="text-sm font-bold text-foreground mb-1">No Item Selected</h4>
-                        <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-                          Click on any highlighted PII token in the document page to review AI
-                          confidence, risks, and logical logs.
-                        </p>
-                      </Card>
+                      {detections.length > 0 ? (
+                        <EmptyState
+                          title="Select a PII Token"
+                          description="Click any highlighted token in the document to review Gemini's AI confidence, risk level, and logical reasoning for that detection."
+                          className="min-h-[200px]"
+                        />
+                      ) : (
+                        <ErrorState
+                          title="No Detections Available"
+                          description="No PII was detected in this document. The document may be safe to share, or the analysis may have failed."
+                          retryLabel="Re-upload Document"
+                          onRetry={() => router.push("/sandbox")}
+                        />
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>

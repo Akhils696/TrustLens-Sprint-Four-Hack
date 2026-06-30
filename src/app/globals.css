@@ -78,9 +78,29 @@
   --ring: hsl(216, 12.2% 83.9%);
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   background-color: var(--background);
   color: var(--foreground);
+}
+
+/* Keyboard focus-visible ring for accessibility */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring, 220, 13%, 91%));
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Respect user reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 ::selection {
