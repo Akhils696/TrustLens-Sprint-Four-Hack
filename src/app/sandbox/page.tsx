@@ -4,7 +4,8 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Button } from "@/components/ui/button";
-import { Upload, RefreshCw, AlertCircle } from "lucide-react";
+import { Upload, RefreshCw, AlertCircle, CheckCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export default function Sandbox() {
   const router = useRouter();
@@ -13,24 +14,32 @@ export default function Sandbox() {
   const [status, setStatus] = React.useState<"idle" | "uploading" | "analyzing" | "failed">("idle");
   const [statusMessage, setStatusMessage] = React.useState("");
   const [errorMsg, setErrorMsg] = React.useState("");
+
+  const [stages, setStages] = React.useState([
+    { id: 1, label: "Uploading Document", status: "pending" as const },
+    { id: 2, label: "Extracting Text", status: "pending" as const },
+    { id: 3, label: "Detecting PII", status: "pending" as const },
+    { id: 4, label: "Analyzing Context", status: "pending" as const },
+    { id: 5, label: "Generating Explanations", status: "pending" as const },
+    { id: 6, label: "Preparing Report", status: "pending" as const },
+  ]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  // Rotation text for LLM progress states
+  // Sequential timer to progress through context analysis stages in demo UI
   React.useEffect(() => {
-    /* eslint-disable react-hooks/set-state-in-effect */
     if (status !== "analyzing") return;
-    const messages = [
-      "Analyzing document...",
-      "Finding sensitive information...",
-      "Generating explanations...",
-      "Applying layout boundaries...",
-    ];
-    let idx = 0;
-    setStatusMessage(messages[0]);
+    let idx = 2; // stage 3 index is 2
     const interval = setInterval(() => {
-      idx = (idx + 1) % messages.length;
-      setStatusMessage(messages[idx]);
-    }, 2000);
+      setStages((prev) =>
+        prev.map((s, i) => {
+          if (i === idx) return { ...s, status: "completed" };
+          if (i === idx + 1) return { ...s, status: "loading" };
+          return s;
+        })
+      );
+      idx++;
+      if (idx >= 5) clearInterval(interval);
+    }, 1200);
     return () => clearInterval(interval);
   }, [status]);
 
@@ -76,7 +85,14 @@ export default function Sandbox() {
 
   const uploadAndAnalyze = async (targetFile: File) => {
     setStatus("uploading");
-    setStatusMessage("Uploading document to secure workspace...");
+    setStages([
+      { id: 1, label: "Uploading Document", status: "loading" },
+      { id: 2, label: "Extracting Text", status: "pending" },
+      { id: 3, label: "Detecting PII", status: "pending" },
+      { id: 4, label: "Analyzing Context", status: "pending" },
+      { id: 5, label: "Generating Explanations", status: "pending" },
+      { id: 6, label: "Preparing Report", status: "pending" },
+    ]);
 
     const formData = new FormData();
     formData.append("file", targetFile);
@@ -97,6 +113,15 @@ export default function Sandbox() {
       const fileId = uploadData.fileId;
       const textContent = uploadData.text;
 
+      // Mark upload and extraction as completed
+      setStages((prev) =>
+        prev.map((s) => {
+          if (s.id === 1 || s.id === 2) return { ...s, status: "completed" };
+          if (s.id === 3) return { ...s, status: "loading" };
+          return s;
+        })
+      );
+
       // 2. Trigger PII Analysis
       setStatus("analyzing");
       const analyzeRes = await fetch("http://localhost:8000/api/analyze", {
@@ -111,6 +136,11 @@ export default function Sandbox() {
       }
 
       const analyzeData = await analyzeRes.json();
+
+      // Complete all remaining stages
+      setStages((prev) => prev.map((s) => ({ ...s, status: "completed" })));
+      // A small delay for user confirmation
+      await new Promise((resolve) => setTimeout(resolve, 600));
 
       // Save credentials for the Review dashboard
       localStorage.setItem("trustlens_file_id", fileId);
@@ -181,15 +211,47 @@ export default function Sandbox() {
             )}
           </div>
         ) : (
-          <div className="border border-border rounded-2xl p-12 bg-card space-y-8 flex flex-col items-center max-w-md mx-auto shadow-lg animate-pulse">
-            <RefreshCw className="h-10 w-10 text-primary animate-spin" />
-            <div className="space-y-2">
-              <h3 className="text-lg font-bold text-foreground">{statusMessage}</h3>
-              <p className="text-xs text-muted-foreground">
-                Analyzing token boundaries for sensitive descriptors. Please keep this browser
-                window open.
-              </p>
+          <div className="border border-border rounded-2xl p-8 bg-card space-y-6 flex flex-col items-stretch text-left max-w-md mx-auto shadow-lg">
+            <div className="flex items-center gap-3 border-b border-border pb-4">
+              <RefreshCw className="h-6 w-6 text-primary animate-spin" />
+              <div>
+                <h3 className="text-md font-bold text-foreground">AI Privacy Workspace</h3>
+                <p className="text-xs text-muted-foreground">
+                  Analyzing token boundaries for sensitive descriptors.
+                </p>
+              </div>
             </div>
+
+            {/* Checklist of stages */}
+            <div className="space-y-4">
+              {stages.map((stage) => (
+                <div key={stage.id} className="flex items-center justify-between text-sm">
+                  <span
+                    className={`font-semibold ${stage.status === "pending" ? "text-muted-foreground" : "text-foreground"}`}
+                  >
+                    {stage.label}
+                  </span>
+                  <div>
+                    {stage.status === "completed" && (
+                      <Badge className="bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 dark:text-emerald-400">
+                        <CheckCircle className="h-3 w-3 inline mr-1" /> Done
+                      </Badge>
+                    )}
+                    {stage.status === "loading" && (
+                      <Badge className="bg-primary/10 text-primary border border-primary/20 animate-pulse">
+                        <RefreshCw className="h-3 w-3 inline mr-1 animate-spin" /> In Progress
+                      </Badge>
+                    )}
+                    {stage.status === "pending" && (
+                      <Badge variant="outline" className="text-muted-foreground border-dashed">
+                        Pending
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
             <div className="w-full bg-secondary h-1.5 rounded-full overflow-hidden">
               <div className="bg-primary h-full w-[60%] rounded-full animate-infinite-loading" />
             </div>
