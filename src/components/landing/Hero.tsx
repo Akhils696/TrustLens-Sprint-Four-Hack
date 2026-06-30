@@ -3,9 +3,12 @@
 import * as React from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import { useRouter } from "next/navigation";
 import { ArrowRight, Eye, ShieldCheck, FileSpreadsheet } from "lucide-react";
 
 export function Hero() {
+  const router = useRouter();
+
   return (
     <section className="relative overflow-hidden py-20 lg:py-32 bg-background">
       {/* Background Gradient Blurs */}
@@ -60,11 +63,20 @@ export function Hero() {
             <Button
               size="lg"
               className="shadow-lg cursor-pointer"
+              onClick={() => router.push("/sandbox")}
               rightIcon={<ArrowRight className="h-4 w-4" />}
             >
               Upload Document
             </Button>
-            <Button variant="outline" size="lg" className="cursor-pointer">
+            <Button
+              variant="outline"
+              size="lg"
+              className="cursor-pointer"
+              onClick={() => {
+                const el = document.getElementById("features");
+                el?.scrollIntoView({ behavior: "smooth" });
+              }}
+            >
               Learn More
             </Button>
           </motion.div>

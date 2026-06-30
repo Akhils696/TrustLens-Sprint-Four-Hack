@@ -1,10 +1,12 @@
 "use client";
 
-import * as React from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Shield } from "lucide-react";
 
 export function CTA() {
+  const router = useRouter();
+
   return (
     <section className="py-20 bg-background relative overflow-hidden">
       {/* Background radial highlight */}
@@ -28,11 +30,17 @@ export function CTA() {
           <Button
             size="lg"
             className="shadow-md cursor-pointer"
+            onClick={() => router.push("/sandbox")}
             rightIcon={<ArrowRight className="h-4 w-4" />}
           >
             Upload Document
           </Button>
-          <Button variant="outline" size="lg" className="cursor-pointer">
+          <Button
+            variant="outline"
+            size="lg"
+            className="cursor-pointer"
+            onClick={() => router.push("/sandbox")}
+          >
             Explore Sandbox
           </Button>
         </div>
