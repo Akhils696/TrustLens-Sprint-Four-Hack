@@ -1,29 +1,44 @@
-# TrustLens 🔍
+# TrustLens 🔍 — AI-Powered Verifiable PII Redaction Assistant
 
-> "Privacy you can verify. Instead of asking users to trust AI, we prove that the document is safe."
+[![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat-square&logo=next.js)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688?style=flat-square&logo=fastapi)](https://fastapi.tiangolo.com/)
+[![Gemini](https://img.shields.io/badge/Gemini-2.5%20Flash-blue?style=flat-square&logo=google-gemini)](https://deepmind.google/technologies/gemini/)
+[![PyMuPDF](https://img.shields.io/badge/PDF%20Redaction-PyMuPDF-ff6f00?style=flat-square)](https://pymupdf.readthedocs.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
-TrustLens is a production-grade, AI-powered document anonymization and PII detection assistant built to solve the "black box" trust gap. Designed for compliance officers, risk analysts, and security-conscious professionals, TrustLens makes every PII redaction decision transparent, explainable, and verifiable.
+> **"Privacy you can verify. Instead of asking users to trust AI, we prove that the document is safe."**
+
+TrustLens is a production-grade, AI-powered document anonymization and PII detection assistant built to solve the "black box" trust gap in automated compliance. Designed for compliance officers, risk analysts, and security-conscious professionals, TrustLens makes every PII redaction decision transparent, explainable, and verifiable.
+
+---
+
+## 📸 Interactive Product Dashboard
+
+Below is a screenshot of the TrustLens verification and review workspace in action, illustrating real-time coordinate highlight mapping and AI explanation panels:
+
+![TrustLens Dashboard Preview](public/screenshot.png)
 
 ---
 
 ## 📖 Table of Contents
-1. [Project Overview & Vision](#-project-overview--vision)
-2. [Key Features](#-key-features)
-3. [System Architecture](#%EF%B8%8F-system-architecture)
-4. [Folder Structure](#-folder-structure)
-5. [Technology Stack](#-technology-stack)
-6. [Local Environment Setup](#-local-environment-setup)
-7. [API Documentation](#-api-documentation)
+1. [🌟 Project Vision & Core Features](#-project-vision--core-features)
+2. [⚙️ System Architecture](#%EF%B8%8F-system-architecture)
+3. [📂 Folder Structure](#-folder-structure)
+4. [💻 Technology Stack](#-technology-stack)
+5. [🚀 Local Environment Setup](#-local-environment-setup)
+6. [🔌 API Documentation](#-api-documentation)
+7. [🛠️ Production-Ready Bug Fixes (Sprint 7)](#%EF%B8%8F-production-ready-bug-fixes-sprint-7)
 
 ---
 
-## 🌟 Project Overview & Vision
+## 🌟 Project Vision & Core Features
 
 ### The Problem
-Automated document anonymizers operate as black boxes. When a file is scrubbed, users are presented with a redacted output without any explanation of *why* specific information was hidden, or *why other text was left visible*. Because of this, compliance officers must manually review every single word of the output, rendering automation obsolete.
+Automated document anonymizers operate as black boxes. When a file is scrubbed, users are presented with a redacted output without any explanation of *why* specific information was hidden, or *why other text was left visible*. Because of this lack of transparency, compliance officers must manually check every single word, rendering automation obsolete.
 
 ### Our Solution
 TrustLens establishes **Trust & Explainability** as first-class citizens. By integrating secure, modern document parsers with advanced Gemini LLM semantic reasoning, we provide:
+* **Interactive Highlight Mapping**: Real-time visual synchronization of detected PII.
 * **Explainability Logs**: Click any redacted token to inspect *why* it was classified as PII, along with match confidence, risk level, and suggestions.
 * **Omission Audits ("Why Not This")**: Select any unhighlighted text and ask the AI why it was left visible. If the AI made a mistake, instantly "Mark as Sensitive" to add it to the redaction pipeline.
 * **Configurable Privacy Settings**: Adjust confidence thresholds dynamically, swap highlight visual themes, and toggle auto-redaction rules.
@@ -31,7 +46,7 @@ TrustLens establishes **Trust & Explainability** as first-class citizens. By int
 
 ---
 
-## 🛠️ System Architecture
+## ⚙️ System Architecture
 
 TrustLens is designed following clean architecture guidelines. Data is processed ephemerally completely in-memory and deleted post-session.
 
@@ -106,8 +121,10 @@ TrustLens/
    ```bash
    cd backend
    python -m venv venv
-   # On Windows:
-   venv\Scripts\activate
+   
+   # On Windows (PowerShell):
+   .\venv\Scripts\Activate.ps1
+   
    # On macOS/Linux:
    source venv/bin/activate
 
@@ -137,3 +154,12 @@ TrustLens/
 | `/api/download/{id}` | `GET` | Serves the redacted PDF or TXT document download. |
 | `/api/report/{id}` | `GET` | Returns the complete compliance privacy report JSON. |
 | `/api/health` | `GET` | Checks backend engine health status. |
+
+---
+
+## 🛠️ Production-Ready Bug Fixes (Sprint 7)
+
+For the final version release, we polished the codebase and solved several production bugs:
+* **UUID Download Fix**: Configured header parameters (`Content-Disposition` and exposed headers via CORS) so files download with their original filename (e.g., `contract_redacted.pdf`) rather than internal server UUID filenames.
+* **Auto-Cleanup Background Tasks**: Leveraged FastAPI `BackgroundTasks` to delete temporary redacted files immediately after being served, guaranteeing zero user-data retention on disk.
+* **Navigation Flow Controls**: Disallowed browser redirections to raw API nodes, ensuring that all UI buttons retain focus inside the Next.js single-page application.
